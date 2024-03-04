@@ -5,7 +5,7 @@
 #include <assert.h>
 
 #include "fiber.h"
-#include "wasm.h"
+#include "wasm_utils.h"
 
 /** Asyncify imports **/
 // The following functions are asyncify primitives:
@@ -18,19 +18,19 @@
 // * asyncfiy_stop_rewind(): delimits the extent of a continuation
 //  reinstatement.
 extern
-__wasm_import("asyncify", "start_unwind")
+__wasm_import__("asyncify", "start_unwind")
 void asyncify_start_unwind(void*);
 
 extern
-__wasm_import("asyncify", "stop_unwind")
+__wasm_import__("asyncify", "stop_unwind")
 void asyncify_stop_unwind(void);
 
 extern
-__wasm_import("asyncify", "start_rewind")
+__wasm_import__("asyncify", "start_rewind")
 void asyncify_start_rewind(void*);
 
 extern
-__wasm_import("asyncify", "stop_rewind")
+__wasm_import__("asyncify", "stop_rewind")
 void asyncify_stop_rewind(void);
 
 // The default stack size is 2MB.
@@ -99,15 +99,15 @@ fiber_t fiber_sized_alloc(size_t stack_size, fiber_entry_point_t entry) {
 }
 
 // Allocates a fiber object with the default stack size.
-__noinline
-__wasm_export("fiber_alloc")
+__attribute__((noinline))
+__wasm_export__("fiber_alloc")
 fiber_t fiber_alloc(fiber_entry_point_t entry) {
   return fiber_sized_alloc(FIBER_DEFAULT_STACK_SIZE, entry);
 }
 
 // Frees a fiber object.
-__noinline
-__wasm_export("fiber_free")
+__attribute__((noinline))
+__wasm_export__("fiber_free")
 void fiber_free(fiber_t fiber) {
   fiber_stack_free(fiber->stack);
   free(fiber);
@@ -115,8 +115,8 @@ void fiber_free(fiber_t fiber) {
 
 // Yields control from within a fiber computation to whichever point
 // originally resumed the fiber.
-__noinline
-__wasm_export("fiber_yield")
+__attribute__((noinline))
+__wasm_export__("fiber_yield")
 void* fiber_yield(void *arg) {
   if (active_fiber->state == YIELDING) {
     asyncify_stop_rewind();
@@ -131,8 +131,8 @@ void* fiber_yield(void *arg) {
 }
 
 // Resumes a given fiber. Control is transferred to the fiber.
-__noinline
-__wasm_export("fiber_resume")
+__attribute__((noinline))
+__wasm_export__("fiber_resume")
 void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
   // If we are done, signal error and return.
   if (fiber->state == DONE) {
@@ -172,5 +172,4 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
     *result = FIBER_OK;
     return fiber_result;
   }
-
 }

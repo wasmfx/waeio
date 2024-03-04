@@ -2,7 +2,7 @@
 #define WAEIO_H
 
 #include <sys/socket.h>
-#include <waio.h>
+#include <wasio.h>
 #include <wasm_utils.h>
 
 __wasm_export__("waeio_run")
