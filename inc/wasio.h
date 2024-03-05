@@ -6,7 +6,7 @@
 
 extern
 __wasm_export__("wasio_accept")
-int wasio_accept(int fd, struct sockaddr *restrict addr, socklen_t *restrict addr_len);
+int wasio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
 
 extern
 __wasm_export__("wasio_recv")

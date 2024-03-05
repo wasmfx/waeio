@@ -5,11 +5,14 @@
 #include <wasio.h>
 #include <wasm_utils.h>
 
-__wasm_export__("waeio_run")
-int waeio_run(void (*main)(void));
+__wasm_export__("waeio_main")
+int waeio_main(void* (*main)(void*), void*);
+
+__wasm_export__("waeio_async")
+void* waeio_async(void *(*proc)(void*), void*);
 
 __wasm_export__("waeio_accept")
-int waeio_accept(int fd, struct sockaddr *restrict addr, socklen_t *restrict addr_len);
+int waeio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
 
 __wasm_export__("waeio_recv")
 int waeio_recv(int fd, char *buf, size_t len);
