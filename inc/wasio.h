@@ -1,8 +1,27 @@
 #ifndef WAEIO_WAISO_H
 #define WAEIO_WAISO_H
 
+#include <limits.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <wasm_utils.h>
+
+#define FIBER_KILL_SIGNAL INT_MIN
+
+enum wasio_events {
+  WASIO_POLLIN = POLLIN,
+  WASIO_POLLOUT = POLLOUT
+};
+
+struct wasio_pollfd {
+  int fd;
+  short events;
+  short revents;
+};
+
+extern
+__wasm_export__("wasio_poll")
+int wasio_poll(struct wasio_pollfd *fds, size_t len);
 
 extern
 __wasm_export__("wasio_accept")

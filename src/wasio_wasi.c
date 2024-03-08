@@ -1,9 +1,19 @@
+#include <fcntl.h>
+#include <poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <wasio.h>
 
+int wasio_poll(struct wasio_pollfd *fds, size_t len) {
+  return poll((struct pollfd*)fds, (nfds_t)len, -1 /* blocking */);
+}
+
 int wasio_accept(int fd, struct sockaddr *restrict addr, socklen_t *restrict addr_len) {
-  return accept(fd, addr, addr_len);
+  int ans = accept(fd, addr, addr_len);
+  if (ans < 0) return ans;
+  int status = fcntl(ans, F_SETFL, fcntl(ans, F_GETFL, 0) | O_NONBLOCK);
+  if (status < 0) return status;
+  else return ans;
 }
 
 int wasio_recv(int fd, char *buf, size_t len) {

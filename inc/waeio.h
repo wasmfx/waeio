@@ -9,7 +9,7 @@ __wasm_export__("waeio_main")
 int waeio_main(void* (*main)(void*), void*);
 
 __wasm_export__("waeio_async")
-void* waeio_async(void *(*proc)(void*), void*);
+int waeio_async(void *(*proc)(void*), void*);
 
 __wasm_export__("waeio_accept")
 int waeio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
