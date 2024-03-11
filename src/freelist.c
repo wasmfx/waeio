@@ -10,12 +10,12 @@
 #if UINT_MAX == UINT32_MAX
 typedef uint32_t bitmap_t;
 static_assert(sizeof(bitmap_t) == 4, "bit width of bitmap_t");
-static const size_t bitvector_width = 32;
+static const size_t int_width = 32;
 static const natint_t natint_max = UINT32_MAX;
 #elif UINT_MAX == UINT64_MAX
 typedef uint64_t bitmap_t;
 static_assert(sizeof(bitmap_t) == 8, "bit width of bitmap_t");
-static const size_t bitvector_width = 64;
+static const size_t int_width = 64;
 static const natint_t natint_max = UINT64_MAX;
 #else
 #error "unsupported integer type: the bit width of int must be either 32 or 64"
@@ -28,7 +28,7 @@ struct freelist {
 };
 
 static inline size_t calc_vector_len(size_t freespace) {
-  return freespace % bitvector_width == 0 ? freespace / bitvector_width : freespace / bitvector_width + 1;
+  return freespace % int_width == 0 ? freespace / int_width : freespace / int_width + 1;
 }
 
 int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
@@ -40,8 +40,7 @@ int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
   if (*fl == NULL) return FREELIST_MEM_ERR;
   (*fl)->size = freespace;
   (*fl)->len = len;
-  for (size_t i = 0; i < len; i++)
-    (*fl)->vector[i] = natint_max; // all ones initialised
+  memset((*fl)->vector, natint_max, sizeof(natint_t) * len); // all ones initialised
   return FREELIST_OK;
 }
 
@@ -53,7 +52,7 @@ int freelist_next(freelist_t freelist, uint32_t *entry) {
     if (ans > 0 && (size_t)(ans - 1) < freelist->size) {
       uint32_t index = ans - 1;
       freelist->vector[i] &= ~(1 << index);
-      *entry = index + (bitvector_width * i);
+      *entry = index + (int_width * i);
       /* printf("Found index: %d, ans: %d, i: %zu, length: %zu, size: %zu\n", (int)*entry, ans, i, freelist->len, freelist->size); */
       /* fflush(stdout); */
       return FREELIST_OK;
@@ -66,8 +65,8 @@ int freelist_reclaim(freelist_t freelist, uint32_t entry) {
   if (entry >= freelist->size) {
     return FREELIST_OB_ENTRY;
   }
-  uint32_t v_index = entry / bitvector_width;
-  uint32_t b_index = entry - (bitvector_width * v_index);
+  uint32_t v_index = entry / int_width;
+  uint32_t b_index = entry - (int_width * v_index);
   freelist->vector[v_index] |= 1 << b_index;
   return FREELIST_OK;
 }
