@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 void fill_list(size_t capacity, freelist_t fl) {
-  uint32_t entry;
+  natint_t entry;
   for (size_t i = 0; i < capacity; i++) {
     /* printf("i: %zu\n", i); */
     assert(freelist_next(fl, &entry) == FREELIST_OK);
@@ -13,7 +13,7 @@ void fill_list(size_t capacity, freelist_t fl) {
 }
 
 int main(void) {
-  uint32_t entry;
+  natint_t entry;
   freelist_t fl;
 
   // Allocation tests
@@ -41,6 +41,7 @@ int main(void) {
   assert(freelist_next(fl, &entry) == FREELIST_FULL);
   assert(freelist_reclaim(fl, 67) == FREELIST_OK);
   assert(freelist_next(fl, &entry) == FREELIST_OK && entry == 67);
+  freelist_delete(fl);
 
   return 0;
 }

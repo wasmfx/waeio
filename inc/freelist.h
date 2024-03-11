@@ -2,8 +2,18 @@
 #ifndef WAEIO_FREELIST_H
 #define WAEIO_FREELIST_H
 
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+// Detect the native int of the *compilation target platform*
+#if UINT_MAX == UINT32_MAX
+typedef uint32_t natint_t;
+#elif UINT_MAX == UINT64_MAX
+typedef uint64_t natint_t;
+#else
+#error "unsupported integer type: the bit width of int must be either 32 or 64"
+#endif
 
 enum freelist_return_code {
   FREELIST_OK = 0,
@@ -16,8 +26,8 @@ enum freelist_return_code {
 typedef struct freelist* freelist_t;
 
 extern int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t /* out */ *freelist);
-extern int freelist_next(freelist_t freelist, uint32_t /* out */ *entry);
-extern int freelist_reclaim(freelist_t freelist, uint32_t entry);
+extern int freelist_next(freelist_t freelist, natint_t /* out */ *entry);
+extern int freelist_reclaim(freelist_t freelist, natint_t entry);
 extern void freelist_delete(freelist_t freelist);
 
 #endif

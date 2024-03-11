@@ -1,21 +1,31 @@
 #include <assert.h>
-#include <stdio.h>
 #include <freelist.h>
+#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <stdio.h>
+
+#if UINT_MAX == UINT32_MAX
 typedef uint32_t bitmap_t;
+static_assert(sizeof(bitmap_t) == 4, "bit width of bitmap_t");
+static const size_t bitvector_width = 32;
+static const natint_t natint_max = UINT32_MAX;
+#elif UINT_MAX == UINT64_MAX
+typedef uint64_t bitmap_t;
+static_assert(sizeof(bitmap_t) == 8, "bit width of bitmap_t");
+static const size_t bitvector_width = 64;
+static const natint_t natint_max = UINT64_MAX;
+#else
+#error "unsupported integer type: the bit width of int must be either 32 or 64"
+#endif
 
 struct freelist {
   size_t size; // number of elements managed by the freelist
   size_t len; // length of the bitvector
   bitmap_t vector[];
 };
-
-static const size_t bitvector_width = 32;
-
-static_assert(sizeof(bitmap_t) == 4, "bit width of bitmap_t");
 
 static inline size_t calc_vector_len(size_t freespace) {
   return freespace % bitvector_width == 0 ? freespace / bitvector_width : freespace / bitvector_width + 1;
@@ -30,7 +40,8 @@ int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
   if (*fl == NULL) return FREELIST_MEM_ERR;
   (*fl)->size = freespace;
   (*fl)->len = len;
-  memset((*fl)->vector, ~0LL, freespace); // all ones initialised
+  for (size_t i = 0; i < len; i++)
+    (*fl)->vector[i] = natint_max; // all ones initialised
   return FREELIST_OK;
 }
 
