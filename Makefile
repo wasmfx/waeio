@@ -10,6 +10,11 @@ echoserver_wasi: examples/echoserver/echoserver.c
 	$(ASYNCIFY) echoserver_wasi.wasm -o echoserver_wasi_asyncify.wasm
 	chmod +x echoserver_wasi_asyncify.wasm
 
+echoserver_host: examples/echoserver/echoserver.c
+	$(WASICC) src/fiber_asyncify.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
+	$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
+	chmod +x echoserver_host_asyncify.wasm
+
 .PHONY: clean
 clean:
 	rm -f *.o
