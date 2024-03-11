@@ -2,15 +2,24 @@ ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable
 WASICC=../benchfx/wasi-sdk-21.0/bin/clang-17
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -O3 -I inc
 WASIFLAGS=$(COMMON_FLAGS)
-CC=clang-17
-CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/release/libwasmtime.a -lpthread -ldl -lm -O3
+CC=clang
+CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/release/libwasmtime.a -lpthread -ldl -lm
 
 echoserver_wasi: examples/echoserver/echoserver.c
 	$(WASICC) src/fiber_asyncify.c src/wasio_wasi.c src/waeio.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_wasi.wasm
 	$(ASYNCIFY) echoserver_wasi.wasm -o echoserver_wasi_asyncify.wasm
 	chmod +x echoserver_wasi_asyncify.wasm
 
+.PHONY: freelist
+freelist: src/freelist.c
+	$(WASICC) $(WASIFLAGS) src/freelist.c -o freelist.wasm
+
+.PHONY: test-freelist
+test-freelist: test/freelist_tests.c
+	$(CC) $(COMMON_FLAGS) src/freelist.c test/freelist_tests.c -o freelist_tests
+
 .PHONY: clean
 clean:
 	rm -f *.o
-	rm -f echoserver_*.wasm
+	rm -f *.wasm
+	rm -f freelist_tests
