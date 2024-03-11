@@ -63,7 +63,7 @@ int freelist_next(freelist_t freelist, uint32_t *entry) {
 }
 
 int freelist_reclaim(freelist_t freelist, uint32_t entry) {
-  if (entry >= (bitvector_width * freelist->len)) {
+  if (entry >= freelist->size) {
     return FREELIST_OB_ENTRY;
   }
   uint32_t v_index = entry / bitvector_width;

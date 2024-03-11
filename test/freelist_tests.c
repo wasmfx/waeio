@@ -33,6 +33,7 @@ int main(void) {
   assert(freelist_next(fl, &entry) == FREELIST_OK && entry == 1);
   assert(freelist_reclaim(fl, 2) == FREELIST_OK);
   assert(freelist_next(fl, &entry) == FREELIST_OK && entry == 2);
+  assert(freelist_reclaim(fl, 4) == FREELIST_OB_ENTRY);
   freelist_delete(fl);
 
   // Tests with a slightly larger list (size 128).
@@ -41,6 +42,7 @@ int main(void) {
   assert(freelist_next(fl, &entry) == FREELIST_FULL);
   assert(freelist_reclaim(fl, 67) == FREELIST_OK);
   assert(freelist_next(fl, &entry) == FREELIST_OK && entry == 67);
+  assert(freelist_reclaim(fl, 256) == FREELIST_OB_ENTRY);
   freelist_delete(fl);
 
   return 0;
