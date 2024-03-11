@@ -31,7 +31,7 @@ static inline size_t calc_vector_len(size_t freespace) {
   return freespace % int_width == 0 ? freespace / int_width : freespace / int_width + 1;
 }
 
-int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
+freelist_result_t freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
   if (!freespace || (freespace & (freespace - 1))) {
     return FREELIST_SIZE_ERR;
   }
@@ -44,7 +44,7 @@ int freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
   return FREELIST_OK;
 }
 
-int freelist_next(freelist_t freelist, uint32_t *entry) {
+freelist_result_t freelist_next(freelist_t freelist, uint32_t *entry) {
   for (size_t i = 0; i < freelist->len; i++) {
     int ans = __builtin_ffs(freelist->vector[i]);
     // TODO(dhil): Consider simplifying such that the minimum size is
@@ -61,7 +61,7 @@ int freelist_next(freelist_t freelist, uint32_t *entry) {
   return FREELIST_FULL;
 }
 
-int freelist_reclaim(freelist_t freelist, uint32_t entry) {
+freelist_result_t freelist_reclaim(freelist_t freelist, uint32_t entry) {
   if (entry >= freelist->size) {
     return FREELIST_OB_ENTRY;
   }
