@@ -142,6 +142,10 @@ int waeio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len) {
   return ans;
 }
 
+static inline bool is_busy(int code) {
+  return code == EAGAIN || code == EWOULDBLOCK;
+}
+
 int waeio_recv(int fd, char *buf, size_t len) {
   cmd_t cmd = { .tag = RECV, .fd = fd };
   int ans;
@@ -152,7 +156,7 @@ int waeio_recv(int fd, char *buf, size_t len) {
       return ans;
     }
     ans = recv(fd, buf, len, 0);
-  } while (ans == EAGAIN || ans == EWOULDBLOCK);
+  } while (ans < 0 && is_busy(errno));
   return ans;
 }
 
@@ -166,7 +170,7 @@ int waeio_send(int fd, char *buf, size_t len) {
       return ans;
     }
     ans = send(fd, buf, len, 0);
-  } while (ans == EAGAIN || ans == EWOULDBLOCK);
+  } while (ans < 0 && is_busy(errno));
   return ans;
 }
 
