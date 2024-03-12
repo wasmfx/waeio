@@ -107,6 +107,7 @@ static inline bool handle_cmd(cmd_t *cmd, waeio_state_t *state) {
     // TODO(dhil): push is defined here, because the above assertion
     // held. May change in the future.
     rqueue_push(state->pushq, (struct fiber_closure){ .fiber = new_fiber, .arg = cmd->arg, .entry = entry });
+    rqueue_push(state->pushq, (struct fiber_closure){ .fiber = state->fibers[state->current], .arg = (void*)0, .entry = state->current });
   }
     break;
   case ACCEPT:
