@@ -28,6 +28,10 @@ typedef struct ready_queue {
 static rqueue_t pushq = { .len = 0, .store = {0} };
 static rqueue_t popq  = { .len = 0, .store = {0} };
 
+static inline size_t rqueue_length(rqueue_t *q) {
+  return q->len;
+}
+
 static inline bool rqueue_is_empty(rqueue_t *q) {
   return q->len == 0;
 }
@@ -104,8 +108,8 @@ static inline bool handle_cmd(cmd_t *cmd, waeio_state_t *state) {
     assert(freelist_next(state->fl, &entry) == FREELIST_OK);
     fiber_t new_fiber = fiber_alloc(cmd->entry);
     state->fibers[entry] = new_fiber;
-    // TODO(dhil): push is defined here, because the above assertion
-    // held. May change in the future.
+    // TODO(dhil): We need to check that push is defined here.
+    assert(rqueue_length(state->pushq) + 2 < FIBER_QUEUE_LEN);
     rqueue_push(state->pushq, (struct fiber_closure){ .fiber = new_fiber, .arg = cmd->arg, .entry = entry });
     rqueue_push(state->pushq, (struct fiber_closure){ .fiber = state->fibers[state->current], .arg = (void*)0, .entry = state->current });
   }
@@ -157,18 +161,20 @@ static inline bool continue_fiber(struct fiber_closure clo, waeio_state_t *state
 }
 
 int waeio_main(void* (*main)(void*), void *arg) {
-  //bool quit = false;
+  bool quit = false;
   waeio_state_t *state = (waeio_state_t*)malloc(sizeof(waeio_state_t));
   initialise(MAX_FDS, state, fiber_alloc(main), arg);
 
   // Scheduler loop
-  while (true /* TODO(dhil): set up termination condition */) {
+  while (!quit) {
     // First run every ready fiber...
     rqueue_t *readyq = get_ready_queue(state);
     while (!rqueue_is_empty(readyq)) {
       struct fiber_closure clo = rqueue_pop(readyq);
-      (void)continue_fiber(clo, state);
+      quit = continue_fiber(clo, state);
+      if (quit) break;
     }
+    if (quit) break;
     // ... then poll for I/O events
     int num_ready = wasio_poll(state->fds, MAX_FDS);
     if (num_ready > 0) {
@@ -176,13 +182,15 @@ int waeio_main(void* (*main)(void*), void *arg) {
         if (state->fds[i].fd == -1) continue;
         if (state->fds[i].revents & WASIO_POLLIN || state->fds[i].revents & WASIO_POLLOUT) {
           state->fds[i].fd = -1;
-          (void)continue_fiber((struct fiber_closure){ .fiber = state->fibers[i], .arg = (void*)0, .entry = i }, state);
+          quit = continue_fiber((struct fiber_closure){ .fiber = state->fibers[i], .arg = (void*)0, .entry = i }, state);
+          if (quit) break;
         }
       }
     } else if (num_ready < 0) abort();
     else continue; // timeout
   }
 
+  // TODO(dhil): clean up dangling fibers
   freelist_delete(state->fl);
   free(state);
   return 0;
