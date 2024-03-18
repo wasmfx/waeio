@@ -4,6 +4,20 @@
 #include <unistd.h>
 #include <wasio.h>
 
+int wasio_flags(int flags) {
+  int result = 0;
+  if (flags & WASIO_POLLIN) result |= POLLIN;
+  if (flags & WASIO_POLLOUT) result |= POLLOUT;
+  return result;
+}
+
+int wasio_rflags(int flags) {
+  int result = 0;
+  if (flags & POLLIN) result |= WASIO_POLLIN;
+  if (flags & POLLOUT) result |= WASIO_POLLOUT;
+  return result;
+}
+
 int wasio_poll(struct wasio_pollfd *fds, size_t len) {
   return poll((struct pollfd*)fds, (nfds_t)len, -1 /* blocking */);
 }

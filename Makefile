@@ -1,6 +1,6 @@
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify --pass-arg=asyncify-ignore-imports
 WASICC=../benchfx/wasi-sdk-21.0/bin/clang-17
-COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -O3 -I inc
+COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -O3 -I inc -DMAX_CONNECTIONS=16384
 WASIFLAGS=$(COMMON_FLAGS)
 CC=clang
 CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/release/libwasmtime.a -lpthread -ldl -lm

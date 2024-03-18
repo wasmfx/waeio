@@ -1,3 +1,5 @@
+// TODO(dhil): Perhaps make this a header only library to enable
+// static allocation of freelists.
 #include <assert.h>
 #include <freelist.h>
 #include <limits.h>

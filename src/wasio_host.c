@@ -2,6 +2,14 @@
 #include <wasm_utils.h>
 
 extern
+__wasm_import__("host", "host_flags");
+int host_flags(int flags);
+
+extern
+__wasm_import__("host", "host_rflags");
+int host_rflags(int flags);
+
+extern
 __wasm_import__("host", "host_poll")
 int host_poll(void *fds, size_t len);
 

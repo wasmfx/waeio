@@ -20,6 +20,14 @@ struct wasio_pollfd {
 };
 
 extern
+__wasm_export__("wasio_flags")
+int wasio_flags(int flags);
+
+extern
+__wasm_export__("wasio_rflags")
+int wasio_rflags(int rflags);
+
+extern
 __wasm_export__("wasio_poll")
 int wasio_poll(struct wasio_pollfd *fds, size_t len);
 

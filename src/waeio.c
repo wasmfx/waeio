@@ -16,8 +16,8 @@ struct fiber_closure {
   void *arg;
 };
 
-#define FIBER_QUEUE_LEN (1 << 20)
-#define MAX_FDS (1 << 20)
+#define FIBER_QUEUE_LEN MAX_CONNECTIONS
+#define MAX_FDS MAX_CONNECTIONS
 
 // Fiber queue.
 typedef struct ready_queue {
@@ -116,15 +116,15 @@ static inline bool handle_cmd(cmd_t *cmd, waeio_state_t *state) {
     break;
   case ACCEPT:
     state->fds[state->current].fd = cmd->fd;
-    state->fds[state->current].events = WASIO_POLLIN;
+    state->fds[state->current].events = wasio_flags(WASIO_POLLIN);
     break;
   case RECV:
     state->fds[state->current].fd = cmd->fd;
-    state->fds[state->current].events = WASIO_POLLIN;
+    state->fds[state->current].events = wasio_flags(WASIO_POLLIN);
     break;
   case SEND:
     state->fds[state->current].fd = cmd->fd;
-    state->fds[state->current].events = WASIO_POLLOUT;
+    state->fds[state->current].events = wasio_flags(WASIO_POLLOUT);
     break;
   case QUIT:
     return true;
@@ -180,7 +180,8 @@ int waeio_main(void* (*main)(void*), void *arg) {
     if (num_ready > 0) {
       for (int i = 0; i < MAX_FDS; i++) {
         if (state->fds[i].fd == -1) continue;
-        if (state->fds[i].revents & WASIO_POLLIN || state->fds[i].revents & WASIO_POLLOUT) {
+        int rflags = wasio_rflags(state->fds[i].revents);
+        if (rflags & WASIO_POLLIN || rflags & WASIO_POLLOUT) {
           state->fds[i].fd = -1;
           quit = continue_fiber((struct fiber_closure){ .fiber = state->fibers[i], .arg = (void*)0, .entry = i }, state);
           if (quit) break;
