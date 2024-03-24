@@ -3,8 +3,6 @@
 
 #include <waeio.h>
 
-#define TMP_FILE "/dev/stdin"
-
 int main(void) {
   FILE *fptr = fopen(TMP_FILE, "r");
   char buf[6];

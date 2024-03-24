@@ -2,49 +2,75 @@
 #define WAEIO_WAISO_H
 
 #include <limits.h>
-#include <poll.h>
-#include <sys/socket.h>
+#include <stdint.h>
 #include <wasm_utils.h>
 
 #define FIBER_KILL_SIGNAL INT_MIN
 
-enum wasio_events {
-  WASIO_POLLIN = POLLIN,
-  WASIO_POLLOUT = POLLOUT
+/* enum wasio_events { */
+/*   WASIO_POLLIN = POLLIN, */
+/*   WASIO_POLLOUT = POLLOUT */
+/* }; */
+
+/* struct wasio_pollfd { */
+/*   int fd; */
+/*   short events; */
+/*   short revents; */
+/* }; */
+
+struct wasio_fd;
+
+typedef enum {
+  WASIO_OK,
+  WASIO_ERR
+} wasio_result_t;
+
+typedef enum {
+  WASIO_ADD,
+  WASIO_MOD,
+  WASIO_DEL,
+} wasio_ctl_t;
+
+
+struct wasio_event {
+  int64_t fd;
+  void *data;
 };
 
-struct wasio_pollfd {
-  int fd;
-  short events;
-  short revents;
-};
+extern
+__wasm_export__("wasio_new")
+wasio_result_t wasio_new(struct wasio_fd *wfd);
 
 extern
-__wasm_export__("wasio_flags")
-int wasio_flags(int flags);
+__wasm_export__("wasio_delete")
+wasio_result_t wasio_delete(struct wasio_fd *wfd);
 
 extern
-__wasm_export__("wasio_rflags")
-int wasio_rflags(int rflags);
+__wasm_export__("wasio_ctl")
+wasio_result_t wasio_ctl(struct wasio_fd *wfd, wasio_clt_t cmd, int64_t sockfd, void *data);
 
 extern
-__wasm_export__("wasio_poll")
-int wasio_poll(struct wasio_pollfd *fds, size_t len);
+__wasm_export__("wasio_pool")
+wasio_result_t wasio_poll(struct wasio_fd *wfd, int timeout, struct wasio_event *events, uint32_t *num_events);
+
+extern
+__wasm_export__("wasio_error")
+int32_t wasio_error(struct wasio_fd *wfd, int64_t sockfd);
 
 extern
 __wasm_export__("wasio_accept")
-int wasio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
+wasio_result_t wasio_accept(struct wasio_fd *wfd, int64_t sockfd);
 
 extern
 __wasm_export__("wasio_recv")
-int wasio_recv(int fd, char *buf, size_t len);
+wasio_result_t wasio_recv(struct wasio_fd *wfd, int64_t sockfd, uint8_t *buf, size_t len);
 
 extern
 __wasm_export__("wasio_send")
-int wasio_send(int fd, char *buf, size_t len);
+wasio_result_t wasio_send(struct wasio_fd *wfd, int64_t sockfd, uint8_t *buf, size_t len);
 
 extern
 __wasm_export__("wasio_close")
-int wasio_close(int fd);
+wasio_result_t wasio_close(struct wasio_fd *wfd, int64_t sockfd);
 
 #endif
