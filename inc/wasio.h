@@ -7,30 +7,23 @@
 
 #define FIBER_KILL_SIGNAL INT_MIN
 
-/* enum wasio_events { */
-/*   WASIO_POLLIN = POLLIN, */
-/*   WASIO_POLLOUT = POLLOUT */
-/* }; */
+struct wasio_fd; // embeds fd and fiber.
+struct wasio_conn; // from accept.
 
-/* struct wasio_pollfd { */
-/*   int fd; */
-/*   short events; */
-/*   short revents; */
-/* }; */
+extern
+__wasm_export__("wasio_accept")
+wasio_result_t wasio_accept(struct wasio_fd wfd, struct wasio_conn *conn);
 
-struct wasio_fd;
+extern
+__wasm_export__("wasio_handle")
+wasio_result_t wasio_handle(struct wasio_conn *conn, void* *(*handler)(struct wasio_fd *fd));
+
+
 
 typedef enum {
   WASIO_OK,
   WASIO_ERR
 } wasio_result_t;
-
-typedef enum {
-  WASIO_ADD,
-  WASIO_MOD,
-  WASIO_DEL,
-} wasio_ctl_t;
-
 
 struct wasio_event {
   int64_t fd;
@@ -39,19 +32,19 @@ struct wasio_event {
 
 extern
 __wasm_export__("wasio_new")
-wasio_result_t wasio_new(struct wasio_fd *wfd);
+wasio_result_t wasio_new(struct wasio_fd *wfd, uint32_t max_fds, int64_t *preopened_sock, void *data)
 
 extern
 __wasm_export__("wasio_delete")
-wasio_result_t wasio_delete(struct wasio_fd *wfd);
+void wasio_delete(struct wasio_fd *wfd);
 
 extern
-__wasm_export__("wasio_ctl")
-wasio_result_t wasio_ctl(struct wasio_fd *wfd, wasio_clt_t cmd, int64_t sockfd, void *data);
+__wasm_export__("wasio_attach")
+wasio_result_t wasio_attach(struct wasio_fd *wfd, int64_t fd, void *data);
 
 extern
 __wasm_export__("wasio_pool")
-wasio_result_t wasio_poll(struct wasio_fd *wfd, int timeout, struct wasio_event *events, uint32_t *num_events);
+wasio_result_t wasio_poll(struct wasio_fd *wfd, struct wasio_event *events, uint32_t max_events, uint32_t *num_events, int timeout);
 
 extern
 __wasm_export__("wasio_error")
