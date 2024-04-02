@@ -137,6 +137,7 @@ int main(void) {
     exit_with_error("error calling default export", error, trap);
 
   // Clean up after ourselves at this point
+  wasm_functype_delete(put_hello_sig);
   wasmtime_linker_delete(linker);
   wasmtime_module_delete(module);
   wasmtime_store_delete(store);
