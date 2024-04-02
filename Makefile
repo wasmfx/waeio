@@ -1,9 +1,13 @@
+MODE=debug
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify --pass-arg=asyncify-ignore-imports
 WASICC=../benchfx/wasi-sdk-21.0/bin/clang-17
-COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384 -g
+COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384
+ifeq ($(MODE), debug)
+COMMON_FLAGS:=$(COMMON_FLAGS) -g
+endif
 WASIFLAGS=$(COMMON_FLAGS)
 CC=clang
-CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/debug/libwasmtime.a -lpthread -ldl -lm
+CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/$(MODE)/libwasmtime.a -lpthread -ldl -lm
 
 .PHONY: echoserver_wasi
 echoserver_wasi: examples/echoserver/echoserver.c
