@@ -7,7 +7,7 @@ COMMON_FLAGS:=$(COMMON_FLAGS) -g
 endif
 WASIFLAGS=$(COMMON_FLAGS)
 CC=clang
-CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/$(MODE)/libwasmtime.a -lpthread -ldl -lm
+CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/$(MODE)/libwasmtime.a -lpthread -ldl -lm -fuse-ld=mold
 
 .PHONY: echoserver_wasi
 echoserver_wasi: examples/echoserver/echoserver.c
@@ -40,3 +40,4 @@ clean:
 	rm -f *.o
 	rm -f *.wasm
 	rm -f freelist_tests
+	rm -f hello_driver
