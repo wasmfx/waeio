@@ -5,20 +5,9 @@
 #include <stdint.h>
 #include <wasm_utils.h>
 
-#define FIBER_KILL_SIGNAL INT_MIN
-
-struct wasio_fd; // embeds fd and fiber.
-struct wasio_conn; // from accept.
-
-extern
-__wasm_export__("wasio_accept")
-wasio_result_t wasio_accept(struct wasio_fd wfd, struct wasio_conn *conn);
-
-extern
-__wasm_export__("wasio_handle")
-wasio_result_t wasio_handle(struct wasio_conn *conn, void* *(*handler)(struct wasio_fd *fd));
-
-
+struct wasio_fd {
+  uint32_t vfd;
+};
 
 typedef enum {
   WASIO_OK,

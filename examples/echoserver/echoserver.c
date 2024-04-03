@@ -3,11 +3,12 @@
 
 #include <waeio.h>
 
+void* my_main(void *arg) {
+  (void)arg;
+  return NULL;
+}
+
 int main(void) {
-  FILE *fptr = fopen(TMP_FILE, "r");
-  char buf[6];
-  fgets(buf, 6, fptr);
-  printf("%s\n", buf);
-  waeio_close(0);
+  waeio_main(my_main, NULL);
   return 0;
 }

@@ -15,10 +15,10 @@ __wasm_export__("waeio_accept")
 int waeio_accept(struct wasio_fd fd, struct wasio_fd *new_conn);
 
 __wasm_export__("waeio_recv")
-int waeio_recv(struct wasio_fd fd, uint8_t *buf, uint32_t len, uint32_t *recvlen);
+int waeio_recv(struct wasio_fd fd, uint8_t *buf, uint32_t len);
 
 __wasm_export__("waeio_send")
-int waeio_send(struct wasio_fd fd, uint8_t *buf, uint32_t len, uint32_t *sendlen);
+int waeio_send(struct wasio_fd fd, uint8_t *buf, uint32_t len);
 
 __wasm_export__("waeio_close")
 int waeio_close(struct wasio_fd fd);
