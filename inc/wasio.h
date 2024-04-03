@@ -26,44 +26,47 @@ typedef enum {
 } wasio_result_t;
 
 struct wasio_event {
-  int64_t fd;
   void *data;
 };
 
 extern
-__wasm_export__("wasio_new")
-wasio_result_t wasio_new(struct wasio_fd *wfd, uint32_t max_fds, int64_t *preopened_sock, void *data)
+__wasm_export__("wasio_wrap")
+wasio_result_t wasio_wrap(struct wasio_fd *wfd, int64_t preopened_fd);
 
 extern
-__wasm_export__("wasio_delete")
-void wasio_delete(struct wasio_fd *wfd);
+__wasm_export__("wasio_init")
+wasio_result_t wasio_init(uint32_t hint_max_fds);
+
+extern
+__wasm_export__("wasio_finalize")
+void wasio_finalize(void);
 
 extern
 __wasm_export__("wasio_attach")
-wasio_result_t wasio_attach(struct wasio_fd *wfd, int64_t fd, void *data);
+wasio_result_t wasio_attach(struct wasio_fd *wfd, void *data);
 
 extern
 __wasm_export__("wasio_pool")
-wasio_result_t wasio_poll(struct wasio_fd *wfd, struct wasio_event *events, uint32_t max_events, uint32_t *num_events, int timeout);
+wasio_result_t wasio_poll(struct wasio_event *events, uint32_t max_events, uint32_t *num_events, int32_t timeout);
 
 extern
 __wasm_export__("wasio_error")
-int32_t wasio_error(struct wasio_fd *wfd, int64_t sockfd);
+int32_t wasio_error(struct wasio_fd wfd);
 
 extern
 __wasm_export__("wasio_accept")
-wasio_result_t wasio_accept(struct wasio_fd *wfd, int64_t sockfd);
+wasio_result_t wasio_accept(struct wasio_fd wfd, struct wasio_fd *new_conn);
 
 extern
 __wasm_export__("wasio_recv")
-wasio_result_t wasio_recv(struct wasio_fd *wfd, int64_t sockfd, uint8_t *buf, size_t len);
+wasio_result_t wasio_recv(struct wasio_fd wfd, uint8_t *buf, uint32_t len, uint32_t *recvlen);
 
 extern
 __wasm_export__("wasio_send")
-wasio_result_t wasio_send(struct wasio_fd *wfd, int64_t sockfd, uint8_t *buf, size_t len);
+wasio_result_t wasio_send(struct wasio_fd wfd, uint8_t *buf, uint32_t len, uint32_t *sendlen);
 
 extern
 __wasm_export__("wasio_close")
-wasio_result_t wasio_close(struct wasio_fd *wfd, int64_t sockfd);
+wasio_result_t wasio_close(struct wasio_fd wfd);
 
 #endif

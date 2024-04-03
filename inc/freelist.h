@@ -16,9 +16,10 @@ typedef enum freelist_return_code {
 
 typedef struct freelist* freelist_t;
 
-extern freelist_result_t freelist_new(size_t freespace /* must be a power of 2 */, freelist_t /* out */ *freelist);
-extern freelist_result_t freelist_next(freelist_t freelist, unsigned int /* out */ *entry);
-extern freelist_result_t freelist_reclaim(freelist_t freelist, unsigned int entry);
+extern freelist_result_t freelist_new(uint32_t freespace /* must be positive */, freelist_t /* out */ *freelist);
+extern freelist_result_t freelist_next(freelist_t freelist, uint32_t /* out */ *entry);
+extern freelist_result_t freelist_reclaim(freelist_t freelist, uint32_t entry);
+extern freelist_result_t freelist_resize(freelist_t *freelist, uint32_t freespace);
 extern void freelist_delete(freelist_t freelist);
 
 #endif

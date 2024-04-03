@@ -19,20 +19,18 @@ static const size_t int_width = 32;
 #endif
 
 struct freelist {
-  size_t size; // number of elements managed by the freelist
-  size_t len; // length of the bitvector
+  uint32_t size; // number of elements managed by the freelist
+  uint32_t len; // length of the bitvector
   uint32_t vector[];
 };
 
-static inline size_t calc_vector_len(size_t freespace) {
+static inline uint32_t calc_vector_len(uint32_t freespace) {
   return freespace % int_width == 0 ? freespace / int_width : freespace / int_width + 1;
 }
 
-freelist_result_t freelist_new(size_t freespace /* must be a power of 2 */, freelist_t *fl) {
-  if (!freespace || (freespace & (freespace - 1))) {
-    return FREELIST_SIZE_ERR;
-  }
-  size_t len = calc_vector_len(freespace);
+freelist_result_t freelist_new(uint32_t freespace /* must be a positive number */, freelist_t *fl) {
+  if (freespace == 0) return FREELIST_SIZE_ERR;
+  uint32_t len = calc_vector_len(freespace);
   *fl = (freelist_t)malloc(sizeof(struct freelist) + sizeof(uint32_t[len]));
   if (*fl == NULL) return FREELIST_MEM_ERR;
   (*fl)->size = freespace;
@@ -43,10 +41,10 @@ freelist_result_t freelist_new(size_t freespace /* must be a power of 2 */, free
 
 freelist_result_t freelist_next(freelist_t freelist, uint32_t *entry) {
   for (size_t i = 0; i < freelist->len; i++) {
-    int ans = __builtin_ffs(MASK_HIGH32(freelist->vector[i]));
+    int32_t ans = (uint32_t)__builtin_ffs(MASK_HIGH32(freelist->vector[i]));
     // TODO(dhil): Consider simplifying such that the minimum size is
     // 32, and the length is a multiple of 32.
-    if (ans > 0 && (size_t)(ans - 1) < freelist->size) {
+    if (ans > 0 && (ans - (uint32_t)1) < freelist->size) {
       uint32_t index = ans - 1;
       freelist->vector[i] &= ~(1 << index);
       *entry = index + (int_width * i);
@@ -71,4 +69,14 @@ freelist_result_t freelist_reclaim(freelist_t freelist, uint32_t entry) {
 void freelist_delete(freelist_t freelist) {
   free(freelist);
   freelist = NULL;
+}
+
+freelist_result_t freelist_resize(freelist_t *freelist, uint32_t freespace) {
+  if (freespace == 0) return FREELIST_SIZE_ERR;
+  uint32_t new_len = calc_vector_len(freespace);
+  *freelist = (freelist_t)realloc(*freelist, sizeof(struct freelist) + sizeof(uint32_t[new_len]));
+  if (*freelist == NULL) return FREELIST_MEM_ERR;
+  (*freelist)->len = new_len;
+  (*freelist)->size = freespace;
+  return FREELIST_OK;
 }

@@ -1,7 +1,6 @@
 #ifndef WAEIO_H
 #define WAEIO_H
 
-#include <sys/socket.h>
 #include <wasio.h>
 #include <wasm_utils.h>
 
@@ -12,7 +11,7 @@ __wasm_export__("waeio_async")
 int waeio_async(void *(*proc)(void*), void*);
 
 __wasm_export__("waeio_accept")
-int waeio_accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
+int waeio_accept(int fd);
 
 __wasm_export__("waeio_recv")
 int waeio_recv(int fd, char *buf, size_t len);
