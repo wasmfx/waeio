@@ -45,6 +45,7 @@ int waeio_main(void* (*main)(void*), void *arg) {
   fiber_t mainfiber = fiber_alloc(main);
   wasio_attach(&sock, (void*)mainfiber);
   // Resume main.
+  // Enqueue main (TODO)
   (void)fiber_resume(mainfiber, &sock, &status);
   // Clean up
   fiber_free(mainfiber);
@@ -65,7 +66,6 @@ static inline bool is_busy(int code) {
 
 int waeio_accept(struct wasio_fd fd, struct wasio_fd *new_conn) {
   cmd_t cmd = { .tag = ACCEPT, .wfd = fd };
-
   do {
     int ans = (int)fiber_yield(&cmd);
 
@@ -77,7 +77,7 @@ int waeio_accept(struct wasio_fd fd, struct wasio_fd *new_conn) {
       return 0;
     else
       errno = wasio_error(fd);
-  } while(is_busy(errno));
+  } while (is_busy(errno));
 
   assert(false);
   return 0;
@@ -85,10 +85,9 @@ int waeio_accept(struct wasio_fd fd, struct wasio_fd *new_conn) {
 
 int waeio_recv(struct wasio_fd fd, uint8_t *buf, uint32_t len) {
   cmd_t cmd = { .tag = RECV, .wfd = fd };
-  int ans;
   uint32_t recvlen = 0;
   do {
-    ans = (int)fiber_yield(&cmd);
+    int ans = (int)fiber_yield(&cmd);
     if (ans == FIBER_KILL_SIGNAL) {
       errno = FIBER_KILL_SIGNAL;
       return ans;
@@ -104,15 +103,26 @@ int waeio_recv(struct wasio_fd fd, uint8_t *buf, uint32_t len) {
 }
 
 int waeio_send(struct wasio_fd fd, uint8_t *buf, uint32_t len) {
-  (void)fd;
-  (void)buf;
-  (void)len;
+  cmd_t cmd = { .tag = RECV, .wfd = fd };
+  uint32_t sendlen = 0;
+  do {
+    int ans = (int)fiber_yield(&cmd);
+    if (ans == FIBER_KILL_SIGNAL) {
+      errno = FIBER_KILL_SIGNAL;
+      return ans;
+    }
+    if (wasio_send(fd, buf, len, &sendlen) == WASIO_OK)
+      return sendlen;
+    else
+      errno = wasio_error(fd);
+  } while (is_busy(errno));
+
+  assert(false);
   return 0;
 }
 
 int waeio_close(struct wasio_fd fd) {
-  (void)fd;
-  return 0;
+  return wasio_close(fd) == WASIO_OK ? 0 : wasio_error(fd);
 }
 
 /* struct fiber_closure { */
