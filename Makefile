@@ -11,7 +11,7 @@ CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates
 
 .PHONY: echoserver_wasi
 echoserver_wasi: examples/echoserver/echoserver.c
-	$(WASICC) src/freelist.c src/fiber_asyncify.c src/wasio_wasi.c src/waeio.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_wasi.wasm
+	$(WASICC) -DWASIO_BACKEND=1 src/freelist.c src/fiber_asyncify.c src/wasio_wasi.c src/waeio.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_wasi.wasm
 	$(ASYNCIFY) echoserver_wasi.wasm -o echoserver_wasi_asyncify.wasm
 	chmod +x echoserver_wasi_asyncify.wasm
 
