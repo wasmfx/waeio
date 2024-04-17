@@ -23,4 +23,7 @@ int waeio_send(wasio_fd_t vfd, uint8_t *buf, uint32_t len);
 __wasm_export__("waeio_close")
 int waeio_close(wasio_fd_t vfd);
 
+__wasm_export__("waeio_cancel_all")
+void waeio_cancel_all(void);
+
 #endif

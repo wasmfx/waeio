@@ -13,7 +13,8 @@ wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_
   uint32_t entry;
   if (freelist_next(wfd->fl, &entry) != FREELIST_OK)
     return WASIO_EFULL;
-  wfd->fds[entry].fd = (int)preopened_fd;
+  wfd->vfds[entry].fd = -1;
+  wfd->fds[entry] = (int)preopened_fd;
   wfd->length++;
   *vfd = (wasio_fd_t)entry;
 
@@ -25,15 +26,19 @@ wasio_result_t wasio_init(struct wasio_pollfd *wfd, uint32_t capacity) {
     return WASIO_EFULL;
   wfd->capacity = capacity;
   wfd->length = 0;
-  wfd->fds = (struct pollfd*)malloc(sizeof(struct pollfd)*capacity);
-  for (uint32_t i = 0; i < capacity; i++)
-    wfd->fds[i] = (struct pollfd){ .fd = -1, .events = POLLIN | POLLOUT, .revents = 0 };
+  wfd->vfds = (struct pollfd*)malloc(sizeof(struct pollfd)*capacity);
+  wfd->fds = (int64_t*)malloc(sizeof(int64_t)*capacity);
+  for (uint32_t i = 0; i < capacity; i++) {
+    wfd->vfds[i] = (struct pollfd){ .fd = -1, .events = POLLIN | POLLOUT, .revents = 0 };
+    wfd->fds[i] = -1;
+  }
   return WASIO_OK;
 }
 
 void wasio_finalize(struct wasio_pollfd *wfd) {
   freelist_delete(wfd->fl);
   wfd->length = 0;
+  free(wfd->vfds);
   free(wfd->fds);
 }
 
@@ -42,7 +47,7 @@ wasio_result_t wasio_poll( struct wasio_pollfd *wfd
                          , uint32_t max_events __attribute__((unused))
                          , uint32_t *evlen
                          , int32_t timeout ) {
-  int ans = poll(wfd->fds, (nfds_t)wfd->capacity, (int)timeout);
+  int ans = poll(wfd->vfds, (nfds_t)wfd->capacity, (int)timeout);
   if (ans < 0) return WASIO_ERROR;
   *evlen = (uint32_t)ans;
   return WASIO_OK;
@@ -52,15 +57,15 @@ wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t
   int ans = (int)wasio_wrap(wfd, -1, new_conn_vfd);
   if (ans < 0) return WASIO_ERROR;
 
-  int fd = wfd->fds[vfd].fd;
+  int fd = wfd->fds[vfd];
   ans = accept(fd, NULL, 0);
   if (ans >= 0)
-    wfd->fds[(uint32_t)*new_conn_vfd].fd = ans;
+    wfd->vfds[(uint32_t)*new_conn_vfd].fd = ans;
   return WASIO_OK;
 }
 
 wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *recvlen) {
-  int fd = wfd->fds[vfd].fd;
+  int fd = (int)wfd->fds[vfd];
   int ans = recv(fd, buf, (size_t)len, 0);
   if (ans < 0) return WASIO_ERROR;
   *recvlen = (uint32_t)ans;
@@ -68,7 +73,7 @@ wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf
 }
 
 wasio_result_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *sendlen) {
-  int fd = wfd->fds[vfd].fd;
+  int fd = wfd->vfds[vfd].fd;
   int ans = send(fd, buf, (size_t)len, 0);
   if (ans < 0) return WASIO_ERROR;
   *sendlen = (uint32_t)ans;
@@ -76,10 +81,16 @@ wasio_result_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf
 }
 
 wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
-  if (close(wfd->fds[vfd].fd) != 0) return WASIO_ERROR;
-  wfd->fds[vfd].fd = -1;
+  if (close(wfd->vfds[vfd].fd) != 0) return WASIO_ERROR;
+  wfd->vfds[vfd].fd = -1;
+  wfd->fds[vfd] = -1;
   wfd->length--;
   assert(freelist_reclaim(wfd->fl, vfd) == FREELIST_OK);
+  return WASIO_OK;
+}
+
+wasio_result_t wasio_mark_ready(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
+  wfd->vfds[vfd].fd = (int)wfd->fds[vfd];
   return WASIO_OK;
 }
 

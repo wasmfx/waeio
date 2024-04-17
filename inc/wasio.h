@@ -10,26 +10,29 @@
 #include <poll.h>
 #include <freelist.h>
 struct wasio_pollfd {
-  uint32_t capacity  __attribute__((aligned(8)));
-  uint32_t length    __attribute__((aligned(8)));
-  freelist_t fl      __attribute__((aligned(8)));
-  struct pollfd *fds __attribute__((aligned(8)));
-} __attribute__((packed));
-static_assert(sizeof(struct wasio_pollfd) == 32, "size of struct wasio_pollfd");
+  uint32_t capacity;
+  uint32_t length;
+  freelist_t fl;
+  int64_t *fds;
+  struct pollfd *vfds;
+};
+static_assert(sizeof(struct wasio_pollfd) == 20, "size of struct wasio_pollfd");
 static_assert(offsetof(struct wasio_pollfd, capacity) == 0, "offset of capacity");
-static_assert(offsetof(struct wasio_pollfd, length) == 8, "offset of length");
-static_assert(offsetof(struct wasio_pollfd, fl) == 16, "offset of fl");
-static_assert(offsetof(struct wasio_pollfd, fds) == 24, "offset of fds");
+static_assert(offsetof(struct wasio_pollfd, length) == 4, "offset of length");
+static_assert(offsetof(struct wasio_pollfd, fl) == 8, "offset of fl");
+static_assert(offsetof(struct wasio_pollfd, fds) == 12, "offset of fds");
+static_assert(offsetof(struct wasio_pollfd, vfds) == 16, "offset of vfds");
 struct wasio_event {
   uint64_t _phantom;
 };
 #define WASIO_EVENT_FOREACH(wfd, /* ignored */ evs, num_events, vfd, BODY) \
   { (void)evs; \
-    for (uint32_t i = 0, j = 0; i < wfd->length && j < num_events; i++) { \
-      if (wfd->fds[i].fd < 0) continue; \
-      { uint64_t vfd = (uint64_t)i; j++; BODY } \
+    for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
+      if ((wfd)->vfds[i].fd < 0) continue; \
+      { (wfd)->vfds[i].fd = -1; int64_t vfd = (int64_t)i; j++; BODY } \
     }\
   }
+#define WASIO_EVENT_INITIALISER(_max_events) NULL
 #else
 #error "unsupported backend"
 #endif
@@ -75,4 +78,7 @@ extern
 __wasm_export__("wasio_close")
 wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd);
 
+extern
+__wasm_export__("wasio_mark_ready")
+wasio_result_t wasio_mark_ready(struct wasio_pollfd *wfd, wasio_fd_t vfd);
 #endif
