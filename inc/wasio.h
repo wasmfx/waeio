@@ -6,10 +6,6 @@
 #include <stdint.h>
 #include <wasm_utils.h>
 
-typedef enum {
-  WASIO_EFULL = 64000,
-} wasio_errno_t;
-
 #if WASIO_BACKEND == 1
 #include <poll.h>
 #include <freelist.h>
@@ -41,17 +37,19 @@ struct wasio_event {
 // Virtual file descriptor.
 typedef uint64_t wasio_fd_t;
 
-struct wasio_event {
-  void *data;
-};
+typedef enum {
+  WASIO_OK,
+  WASIO_ERROR,
+  WASIO_EFULL,
+} wasio_result_t;
 
 extern
 __wasm_export__("wasio_wrap")
-int32_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_fd_t /* out */ *vfd);
+wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_fd_t /* out */ *vfd);
 
 extern
 __wasm_export__("wasio_init")
-int32_t wasio_init(struct wasio_pollfd *wfd, uint32_t capacity)
+wasio_result_t wasio_init(struct wasio_pollfd *wfd, uint32_t capacity);
 
 extern
 __wasm_export__("wasio_finalize")
@@ -59,22 +57,22 @@ void wasio_finalize(struct wasio_pollfd *wfd);
 
 extern
 __wasm_export__("wasio_pool")
-int32_t wasio_poll(struct wasio_pollfd *wfd, struct wasio_event *ev, uint32_t max_events, int32_t timeout);
+wasio_result_t wasio_poll(struct wasio_pollfd *wfd, struct wasio_event *ev, uint32_t max_events, uint32_t *evlen, int32_t timeout);
 
 extern
 __wasm_export__("wasio_accept")
-int32_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, struct wasio_fd *new_conn);
+wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t *new_conn);
 
 extern
 __wasm_export__("wasio_recv")
-int32_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *recvlen);
+wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *recvlen);
 
 extern
 __wasm_export__("wasio_send")
-int32_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *sendlen);
+wasio_result_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *sendlen);
 
 extern
 __wasm_export__("wasio_close")
-int32_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd);
+wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd);
 
 #endif
