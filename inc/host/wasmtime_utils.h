@@ -14,7 +14,7 @@
 
 #define DEFINE_BINDING(NAME) static wasm_trap_t* NAME(void *env __attribute__((unused)), \
                                                       wasmtime_caller_t *caller __attribute__((unused)), \
-                                                      const wasmtime_val_t *args, size_t nargs __attribute__((unused)), \
+                                                      const wasmtime_val_t *args __attribute__((unused)), size_t nargs __attribute__((unused)), \
                                                       wasmtime_val_t *results, size_t nresults __attribute__((unused)))
 
 __attribute__((unused))

@@ -17,9 +17,9 @@ echoserver_wasi: examples/echoserver/echoserver.c
 
 .PHONY: echoserver_host
 echoserver_host: inc/host/errno.h examples/echoserver/echoserver.c
-	$(WASICC) -DWASIO_BACKEND=2 src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
+	$(WASICC) -DWASIO_BACKEND=2 src/freelist.c src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
 	#$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
-	$(CC) src/host/socket.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
+	$(CC) src/host/socket.c src/host/poll.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
 	#chmod +x echoserver_host_asyncify.wasm
 
 .PHONY: hello

@@ -2,13 +2,42 @@
 #define WAEIO_WAISO_H
 
 #include <assert.h>
+#include <freelist.h>
 #include <limits.h>
 #include <stdint.h>
 #include <wasm_utils.h>
 
 #if WASIO_BACKEND == 1
 #include <poll.h>
-#include <freelist.h>
+struct wasio_event {
+  uint64_t _phantom;
+};
+#define WASIO_EVENT_FOREACH(wfd, /* ignored */ evs, num_events, vfd, BODY) \
+  { (void)evs; \
+    for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
+      if ((wfd)->vfds[i].fd < 0) continue; /* TODO(dhil): we should check revents here */  \
+      { (wfd)->vfds[i].fd = -1; int64_t vfd = (int64_t)i; j++; BODY } \
+    }\
+  }
+#define WASIO_EVENT_INITIALISER(_max_events) NULL
+#elif WASIO_BACKEND == 2
+struct pollfd {
+  int32_t fd;
+  short int events;
+  short int revents;
+} __attribute__((packed));
+static_assert(sizeof(struct pollfd) == 8, "size of struct pollfd");
+static_assert(offsetof(struct pollfd, fd) == 0, "offset of fd");
+static_assert(offsetof(struct pollfd, events) == 4, "offset of events");
+static_assert(offsetof(struct pollfd, revents) == 6, "offset of revents");
+
+struct wasio_event {
+  uint64_t _phantom;
+};
+#else
+#error "unsupported backend"
+#endif
+
 struct wasio_pollfd {
   uint32_t capacity;
   uint32_t length;
@@ -22,27 +51,7 @@ static_assert(offsetof(struct wasio_pollfd, length) == 4, "offset of length");
 static_assert(offsetof(struct wasio_pollfd, fl) == 8, "offset of fl");
 static_assert(offsetof(struct wasio_pollfd, fds) == 12, "offset of fds");
 static_assert(offsetof(struct wasio_pollfd, vfds) == 16, "offset of vfds");
-struct wasio_event {
-  uint64_t _phantom;
-};
-#define WASIO_EVENT_FOREACH(wfd, /* ignored */ evs, num_events, vfd, BODY) \
-  { (void)evs; \
-    for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
-      if ((wfd)->vfds[i].fd < 0) continue; \
-      { (wfd)->vfds[i].fd = -1; int64_t vfd = (int64_t)i; j++; BODY } \
-    }\
-  }
-#define WASIO_EVENT_INITIALISER(_max_events) NULL
-#elif WASIO_BACKEND == 2
-struct wasio_pollfd {
-  int64_t _phantom;
-};
-struct wasio_event {
-  uint64_t _phantom;
-};
-#else
-#error "unsupported backend"
-#endif
+
 
 // Virtual file descriptor.
 typedef int64_t wasio_fd_t;

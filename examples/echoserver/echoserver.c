@@ -12,10 +12,11 @@
 int main(void) {
   uint8_t buf[256];
   uint32_t nbytes = 0;
-  struct wasio_pollfd wfd;
+  struct wasio_pollfd wfd[128];
   wasio_fd_t sockfd;
+  assert(wasio_init(wfd, 128) == WASIO_OK);
   printf("Setting up listener..\n");
-  assert(wasio_listen(&wfd, &sockfd) == WASIO_OK);
+  assert(wasio_listen(wfd, &sockfd) == WASIO_OK);
   printf("Done\n");
 
   bool keep_going = true;
@@ -23,7 +24,7 @@ int main(void) {
     printf("Awaiting connection...\n");
     wasio_fd_t clientfd;
     host_errno = 0;
-    wasio_result_t ans = wasio_accept(&wfd, sockfd, &clientfd);
+    wasio_result_t ans = wasio_accept(wfd, sockfd, &clientfd);
     printf("errno: %d - %s\n", host_errno, host_strerror(host_errno));
     printf("ans: %d\n", (int)ans);
     if (ans == WASIO_ERROR) {
@@ -35,7 +36,7 @@ int main(void) {
     printf("Got a connection!\n");
     do {
       host_errno = 0;
-      ans = wasio_recv(&wfd, clientfd, buf, 256, &nbytes);
+      ans = wasio_recv(wfd, clientfd, buf, 256, &nbytes);
       if (ans < 0) {
         printf("errno: %d - %s\n", host_errno, host_strerror(host_errno));
       }
@@ -43,13 +44,15 @@ int main(void) {
 
     do {
       host_errno = 0;
-      ans = wasio_send(&wfd, clientfd, buf, nbytes, &nbytes);
+      ans = wasio_send(wfd, clientfd, buf, nbytes, &nbytes);
       if (ans < 0) {
         printf("errno: %d - %s\n", host_errno, host_strerror(host_errno));
       }
     } while (ans == WASIO_ERROR || (host_errno == HOST_EAGAIN || host_errno == HOST_EWOULDBLOCK));
+    wasio_close(wfd, clientfd);
     keep_going = false;
   }
-
+  wasio_close(wfd, sockfd);
+  wasio_finalize(wfd);
   return 0;
 }
