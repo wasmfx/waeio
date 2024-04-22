@@ -1,5 +1,5 @@
 MODE=debug
-ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify --pass-arg=asyncify-ignore-imports
+ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
 WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384
 ifeq ($(MODE), debug)
@@ -18,9 +18,9 @@ echoserver_wasi: examples/echoserver/echoserver.c
 .PHONY: echoserver_host
 echoserver_host: inc/host/errno.h src/host/errno.c examples/echoserver/echoserver.c
 	$(WASICC) -DWASIO_BACKEND=2 src/freelist.c src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
-	#$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
+	$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
 	$(CC) src/host/socket.c src/host/poll.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
-	#chmod +x echoserver_host_asyncify.wasm
+	chmod +x echoserver_host_asyncify.wasm
 
 .PHONY: hello
 hello: examples/hello/hello.c examples/hello/driver.c
