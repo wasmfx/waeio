@@ -54,3 +54,7 @@ dkms.conf
 # Ignore temporaries
 *~
 \#*
+
+# Ignore generated files
+src/host/errno.c
+inc/host/errno.h

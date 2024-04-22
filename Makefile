@@ -16,7 +16,7 @@ echoserver_wasi: examples/echoserver/echoserver.c
 	chmod +x echoserver_wasi_asyncify.wasm
 
 .PHONY: echoserver_host
-echoserver_host: inc/host/errno.h examples/echoserver/echoserver.c
+echoserver_host: inc/host/errno.h src/host/errno.c examples/echoserver/echoserver.c
 	$(WASICC) -DWASIO_BACKEND=2 src/freelist.c src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
 	#$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
 	$(CC) src/host/socket.c src/host/poll.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
@@ -36,10 +36,10 @@ test-freelist: test/freelist_tests.c
 	$(CC) $(COMMON_FLAGS) src/freelist.c test/freelist_tests.c -o freelist_tests
 
 inc/host/errno.h: hosterrno.py
-	python3 hosterrno.py
+	python3 hosterrno.py h
 
 src/host/errno.c: hosterrno.py
-	python3 hosterrno.py
+	python3 hosterrno.py c
 
 
 .PHONY: clean
@@ -48,3 +48,4 @@ clean:
 	rm -f *.wasm
 	rm -f freelist_tests
 	rm -f hello_driver
+	rm -f src/host/errno.c inc/host/errno.h
