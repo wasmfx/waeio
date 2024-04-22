@@ -1,6 +1,6 @@
 MODE=debug
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify --pass-arg=asyncify-ignore-imports
-WASICC=../benchfx/wasi-sdk-21.0/bin/clang-17
+WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384
 ifeq ($(MODE), debug)
 COMMON_FLAGS:=$(COMMON_FLAGS) -g
@@ -16,10 +16,11 @@ echoserver_wasi: examples/echoserver/echoserver.c
 	chmod +x echoserver_wasi_asyncify.wasm
 
 .PHONY: echoserver_host
-echoserver_host: examples/echoserver/echoserver.c
-	$(WASICC) src/fiber_asyncify.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
-	$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
-	chmod +x echoserver_host_asyncify.wasm
+echoserver_host: inc/host/errno.h examples/echoserver/echoserver.c
+	$(WASICC) -DWASIO_BACKEND=2 src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/echoserver/echoserver.c -o echoserver_host.wasm
+	#$(ASYNCIFY) echoserver_host.wasm -o echoserver_host_asyncify.wasm
+	$(CC) src/host/socket.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
+	#chmod +x echoserver_host_asyncify.wasm
 
 .PHONY: hello
 hello: examples/hello/hello.c examples/hello/driver.c
@@ -33,6 +34,12 @@ freelist: src/freelist.c
 .PHONY: test-freelist
 test-freelist: test/freelist_tests.c
 	$(CC) $(COMMON_FLAGS) src/freelist.c test/freelist_tests.c -o freelist_tests
+
+inc/host/errno.h: hosterrno.py
+	python3 hosterrno.py
+
+src/host/errno.c: hosterrno.py
+	python3 hosterrno.py
 
 
 .PHONY: clean

@@ -33,18 +33,29 @@ struct wasio_event {
     }\
   }
 #define WASIO_EVENT_INITIALISER(_max_events) NULL
+#elif WASIO_BACKEND == 2
+struct wasio_pollfd {
+  int64_t _phantom;
+};
+struct wasio_event {
+  uint64_t _phantom;
+};
 #else
 #error "unsupported backend"
 #endif
 
 // Virtual file descriptor.
-typedef uint64_t wasio_fd_t;
+typedef int64_t wasio_fd_t;
 
 typedef enum {
-  WASIO_OK,
-  WASIO_ERROR,
-  WASIO_EFULL,
+  WASIO_OK = 0,
+  WASIO_ERROR = 1,
+  WASIO_EFULL = 2,
 } wasio_result_t;
+
+extern
+__wasm_export__("wasio_listen")
+wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd);
 
 extern
 __wasm_export__("wasio_wrap")

@@ -10,6 +10,8 @@
 #include <wasm.h>
 #include <wasmtime.h>
 
+#include <stdio.h>
+
 #define DEFINE_BINDING(NAME) static wasm_trap_t* NAME(void *env __attribute__((unused)), \
                                                       wasmtime_caller_t *caller __attribute__((unused)), \
                                                       const wasmtime_val_t *args, size_t nargs __attribute__((unused)), \
@@ -37,23 +39,29 @@ static inline wasm_trap_t* result0(wasmtime_val_t *results __attribute__((unused
 
 #define LINK_HOST_FN(name, ex) \
   { \
-    error = wasmtime_linker_define(linker, context, export_module, strlen(export_module), name, strlen(name), &ex)); \
+    error = wasmtime_linker_define(linker, context, export_module, strlen(export_module), name, strlen(name), &ex); \
     if (error != NULL) return error; \
   }
 
 static_assert(sizeof(uint8_t) == 1, "size of uint8_t");
 __attribute__((unused))
-static inline void write_errno(uint8_t *loc) {
-  int err = errno;
-  // NOTE(dhil): Safe guard for potential truncation.
-  assert(INT32_MIN <= err && err <= INT32_MAX);
-  uint32_t v = (uint32_t)err;
-
-  loc[0] = (uint8_t)((uint32_t)v >> 24);
-  loc[1] = (uint8_t)((uint32_t)v >> 16);
-  loc[2] = (uint8_t)((uint32_t)v >> 8);
-  loc[3] = (uint8_t)v;
+static inline void memory_write_u32(uint8_t *mem, uint32_t u32) {
+  mem[0] = (uint8_t)u32;
+  mem[1] = (uint8_t)(u32 >> 8);
+  mem[2] = (uint8_t)(u32 >> 16);
+  mem[3] = (uint8_t)(u32 >> 24);
 }
+
+#define WRITE_ERRNO(host_fn_name, args_offset) \
+  { \
+    /* NOTE(dhil): Safe guard for potential truncation. */ \
+    int err = errno; \
+    assert(INT32_MIN <= err && err <= INT32_MAX); \
+    uint8_t *mem; \
+    LOAD_MEMORY(mem, host_fn_name); \
+    uint32_t offset = uint32_t_of_wasmtime_val_t(args[args_offset]); \
+    memory_write_u32(mem+offset, (uint32_t)err); \
+  }
 
 __attribute__((unused))
 static inline wasmtime_val_t wasmtime_val_t_of_int32_t(int32_t v) {
@@ -77,5 +85,26 @@ static inline int64_t int64_t_of_wasmtime_val_t(wasmtime_val_t v) {
   assert(v.kind == WASMTIME_I64);
   return v.of.i64;
 }
+
+__attribute__((unused))
+static inline uint32_t uint32_t_of_wasmtime_val_t(wasmtime_val_t v) {
+  return (uint32_t)int32_t_of_wasmtime_val_t(v);
+}
+
+__attribute__((unused))
+static inline wasm_functype_t* wasm_functype_new_4_1(
+  wasm_valtype_t* p1, wasm_valtype_t* p2, wasm_valtype_t* p3, wasm_valtype_t* p4,
+  wasm_valtype_t* r
+) {
+  wasm_valtype_t* ps[4] = {p1, p2, p3, p4};
+  wasm_valtype_t* rs[1] = {r};
+  wasm_valtype_vec_t params, results;
+  wasm_valtype_vec_new(&params, 4, ps);
+  wasm_valtype_vec_new(&results, 1, rs);
+  return wasm_functype_new(&params, &results);
+}
+
+#define NEW_WASM_I32 wasm_valtype_new(WASM_I32)
+#define NEW_WASM_I64 wasm_valtype_new(WASM_I64)
 
 #endif
