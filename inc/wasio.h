@@ -34,6 +34,16 @@ static_assert(offsetof(struct pollfd, revents) == 6, "offset of revents");
 struct wasio_event {
   uint64_t _phantom;
 };
+
+#define WASIO_EVENT_FOREACH(wfd, /* ignored */ evs, num_events, vfd, BODY) \
+  { (void)evs; \
+    for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
+      if ((wfd)->vfds[i].fd >= 0 && (wfd)->vfds[i].revents != 0) { \
+        (wfd)->vfds[i].events = 0; (wfd)->vfds[i].revents = 0; int64_t vfd = (int64_t)i; j++; BODY \
+      } \
+    } \
+  }
+
 #else
 #error "unsupported backend"
 #endif
@@ -64,7 +74,7 @@ typedef enum {
 
 extern
 __wasm_export__("wasio_listen")
-wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd);
+wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd, uint32_t port, uint32_t backlog);
 
 extern
 __wasm_export__("wasio_wrap")
@@ -99,6 +109,10 @@ __wasm_export__("wasio_close")
 wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd);
 
 extern
-__wasm_export__("wasio_mark_ready")
-wasio_result_t wasio_mark_ready(struct wasio_pollfd *wfd, wasio_fd_t vfd);
+__wasm_export__("wasio_notify_recv")
+wasio_result_t wasio_notify_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd);
+
+extern
+__wasm_export__("wasio_notify_send")
+wasio_result_t wasio_notify_send(struct wasio_pollfd *wfd, wasio_fd_t vfd);
 #endif

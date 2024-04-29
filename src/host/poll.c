@@ -1,6 +1,7 @@
 // Host-defined socket implementation
 
 #include <assert.h>
+#include <errno.h>
 #include <error.h>
 #include <host/socket.h>
 #include <host/wasmtime_utils.h>
@@ -46,6 +47,8 @@ DEFINE_BINDING(host_poll) {
 
   // Perform the system call.
   int ans = poll(pollfd, (nfds_t)slen, (int)timeout);
+
+  //printf("[host_poll] ans = %d, errno = %d, strerror = %s\n", ans, errno, strerror(errno));
 
   if (ans < 0) {
     WRITE_ERRNO("host_poll", 3);

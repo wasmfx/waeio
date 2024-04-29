@@ -116,6 +116,13 @@ DEFINE_BINDING(host_listen) {
   // Create the socket.
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
+  // Enable address & port reuse.
+  int opt = 1;
+  if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+    WRITE_ERRNO("host_listen", 2);
+    return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));
+  }
+
   if (sockfd < 0) {
     WRITE_ERRNO("host_listen", 2);
     return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));

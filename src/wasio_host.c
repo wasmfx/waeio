@@ -42,10 +42,11 @@ extern
 __wasm_import__("host_poll", "pollin")
 int32_t host_pollout();
 
-static short int POLL_FLAGS = 0;
+static short int pollin = 0;
+static short int pollout = 0;
 
-wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd) {
-  int64_t fd = host_listen(8080, 1, &host_errno);
+wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd, uint32_t port, uint32_t backlog) {
+  int64_t fd = host_listen(port, backlog, &host_errno);
   return fd < 0 ? WASIO_ERROR : wasio_wrap(wfd, fd, vfd);
 }
 
@@ -53,7 +54,7 @@ wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_
   uint32_t entry;
   if (freelist_next(wfd->fl, &entry) != FREELIST_OK)
     return WASIO_EFULL;
-  wfd->vfds[entry].fd = -1;
+  wfd->vfds[entry].fd = (int)preopened_fd;
   wfd->fds[entry] = (int)preopened_fd;
   wfd->length++;
   *vfd = (wasio_fd_t)entry;
@@ -68,11 +69,12 @@ wasio_result_t wasio_init(struct wasio_pollfd *wfd, uint32_t capacity) {
   wfd->length = 0;
   wfd->vfds = (struct pollfd*)malloc(sizeof(struct pollfd)*capacity);
   wfd->fds = (int64_t*)malloc(sizeof(int64_t)*capacity);
+  pollin = host_pollin();
+  pollout = host_pollout();
   for (uint32_t i = 0; i < capacity; i++) {
-    wfd->vfds[i] = (struct pollfd){ .fd = -1, .events = POLL_FLAGS, .revents = 0 };
+    wfd->vfds[i] = (struct pollfd){ .fd = -1, .events = 0, .revents = 0 };
     wfd->fds[i] = -1;
   }
-  POLL_FLAGS = host_pollin() | host_pollout();
   return WASIO_OK;
 }
 
@@ -132,7 +134,14 @@ wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
   return WASIO_OK;
 }
 
-wasio_result_t wasio_mark_ready(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
+wasio_result_t wasio_notify_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
   wfd->vfds[vfd].fd = (int)wfd->fds[vfd];
+  wfd->vfds[vfd].events |= pollin;
+  return WASIO_OK;
+}
+
+wasio_result_t wasio_notify_send(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
+  wfd->vfds[vfd].fd = (int)wfd->fds[vfd];
+  wfd->vfds[vfd].events |= pollout;
   return WASIO_OK;
 }
