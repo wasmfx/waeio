@@ -22,6 +22,14 @@ echoserver_host: inc/host/errno.h src/host/errno.c examples/echoserver/echoserve
 	$(CC) src/host/socket.c src/host/poll.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
 	chmod +x echoserver_host_asyncify.wasm
 
+.PHONY: httpserver_host
+httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c
+	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host.wasm -I vendor/picohttpparser
+	$(ASYNCIFY) httpserver_host.wasm -o httpserver_host_asyncify.wasm
+	$(CC) src/host/socket.c src/host/poll.c examples/httpserver/driver.c -o httpserver_driver $(CFLAGS)
+	chmod +x httpserver_host_asyncify.wasm
+
+
 .PHONY: hello
 hello: examples/hello/hello.c examples/hello/driver.c
 	$(WASICC) $(WASIFLAGS) examples/hello/hello.c -o hello.wasm
@@ -47,5 +55,5 @@ clean:
 	rm -f *.o
 	rm -f *.wasm
 	rm -f freelist_tests
-	rm -f hello_driver
+	rm -f hello_driver echoserver_driver httpserver_driver
 	rm -f src/host/errno.c inc/host/errno.h
