@@ -43,7 +43,7 @@ struct wasio_event {
       } \
     } \
   }
-
+#define WASIO_EVENT_INITIALISER(_max_events) NULL
 #else
 #error "unsupported backend"
 #endif
@@ -70,6 +70,7 @@ typedef enum {
   WASIO_OK = 0,
   WASIO_ERROR = 1,
   WASIO_EFULL = 2,
+  WASIO_EAGAIN = 3,
 } wasio_result_t;
 
 extern

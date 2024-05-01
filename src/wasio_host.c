@@ -45,9 +45,16 @@ int32_t host_pollout();
 static short int pollin = 0;
 static short int pollout = 0;
 
+static inline wasio_result_t translate_error(int32_t errno) {
+  if (errno == HOST_EAGAIN || errno == HOST_EWOULDBLOCK)
+    return WASIO_EAGAIN;
+  else
+    return WASIO_ERROR;
+}
+
 wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd, uint32_t port, uint32_t backlog) {
   int64_t fd = host_listen(port, backlog, &host_errno);
-  return fd < 0 ? WASIO_ERROR : wasio_wrap(wfd, fd, vfd);
+  return fd < 0 ? translate_error(host_errno) : wasio_wrap(wfd, fd, vfd);
 }
 
 wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_fd_t /* out */ *vfd) {
@@ -91,18 +98,18 @@ wasio_result_t wasio_poll( struct wasio_pollfd *wfd
                          , uint32_t *evlen
                          , int32_t timeout ) {
   int ans = host_poll(wfd->vfds, wfd->capacity, (int)timeout, &host_errno);
-  if (ans < 0) return WASIO_ERROR;
+  if (ans < 0) return translate_error(host_errno);
   *evlen = (uint32_t)ans;
   return WASIO_OK;
 }
 
 wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t *new_conn_vfd) {
   int ans = (int)wasio_wrap(wfd, -1, new_conn_vfd);
-  if (ans < 0) return WASIO_ERROR;
+  if (ans < 0) return translate_error(host_errno);
 
   int fd = wfd->fds[vfd];
   ans = host_accept((int64_t)fd, &host_errno);
-  if (ans < 0) return WASIO_ERROR;
+  if (ans < 0) return translate_error(host_errno);
 
   wfd->fds[(uint32_t)*new_conn_vfd] = ans;
   wfd->vfds[(uint32_t)*new_conn_vfd].fd = ans;
@@ -112,7 +119,7 @@ wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t
 wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *recvlen) {
   int fd = (int)wfd->fds[vfd];
   int ans = host_recv(fd, buf, len, &host_errno);
-  if (ans < 0) return WASIO_ERROR;
+  if (ans < 0) return translate_error(host_errno);
   *recvlen = (uint32_t)ans;
   return WASIO_OK;
 }
@@ -120,13 +127,13 @@ wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf
 wasio_result_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *sendlen) {
   int fd = (int)wfd->fds[vfd];
   int ans = host_send(fd, buf, len, &host_errno);
-  if (ans < 0) return WASIO_ERROR;
+  if (ans < 0) return translate_error(host_errno);
   *sendlen = (uint32_t)ans;
   return WASIO_OK;
 }
 
 wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
-  if (host_close(wfd->vfds[vfd].fd, &host_errno) != 0) return WASIO_ERROR;
+  if (host_close(wfd->vfds[vfd].fd, &host_errno) != 0) return translate_error(host_errno);
   wfd->vfds[vfd].fd = -1;
   wfd->fds[vfd] = -1;
   wfd->length--;

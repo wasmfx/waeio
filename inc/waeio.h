@@ -6,7 +6,7 @@
 #include <wasm_utils.h>
 
 __wasm_export__("waeio_main")
-int waeio_main(void* (*main)(void*), void*);
+int waeio_main(void* (*main)(wasio_fd_t*));
 
 __wasm_export__("waeio_async")
 int waeio_async(void *(*proc)(wasio_fd_t*), wasio_fd_t vfd);

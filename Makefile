@@ -24,7 +24,7 @@ echoserver_host: inc/host/errno.h src/host/errno.c examples/echoserver/echoserve
 
 .PHONY: httpserver_host
 httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c
-	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/wasio_host.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host.wasm -I vendor/picohttpparser
+	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/fiber_asyncify.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host.wasm -I vendor/picohttpparser
 	$(ASYNCIFY) httpserver_host.wasm -o httpserver_host_asyncify.wasm
 	$(CC) src/host/socket.c src/host/poll.c examples/httpserver/driver.c -o httpserver_driver $(CFLAGS)
 	chmod +x httpserver_host_asyncify.wasm

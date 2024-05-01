@@ -5,12 +5,52 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <picohttpparser.h>
 
-//#include <waeio.h>
-
+#include <waeio.h>
 #include <wasio.h>
+
+
+static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+static const char *months[] = {
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+static int prepare_response(char *buffer, size_t buff_size, const char *body,
+    int content_length) {
+    size_t response_length = 0;
+    time_t t = time(NULL);
+    // DO NOT use localtime
+    struct tm *tm = gmtime(&t);
+
+    response_length +=
+        snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 200 OK");
+    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+    // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
+    // This is considerable faster than strftime
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
+        months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    // TODO, maybe allow closing?
+    // response_length += snprintf(buffer + response_length, buff_size - response_length,
+    // "Connection: close\r\n");
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Content-Length: %d\r\n", content_length);
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Content-Type: text/plain\r\n");
+    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+    if (content_length > 0) {
+        response_length +=
+            snprintf(buffer + response_length, buff_size - response_length, "%s", body);
+    }
+
+    if (response_length < 0 || response_length >= buff_size) {
+        return -1;
+    }
+
+    return response_length;
+}
 
 const char *response_body =
     "CHAPTER I. Down the Rabbit-Hole  Alice was beginning to get very tired of sitting by her "
@@ -37,14 +77,12 @@ const char *response_body =
     "what she was coming to, but it was too dark to see anything; then she looked at the sides of "
     "the well, and noticed that they were filled with cupboards......";
 
-static const uint32_t max_clients = 512;
-static const uint32_t buffer_size = 4096; // 64 * 1024
-
+static const uint32_t buffer_size = 1 << 16;
 static const uint32_t max_headers = 100;
 
-__attribute__((unused))
-static void* handle_request(void *arg __attribute__((unused))) {
-  const char reqbuf[buffer_size];
+static void* handle_request(wasio_fd_t *fd) {
+  wasio_fd_t clientfd = (wasio_fd_t)(uintptr_t)(void*)fd;
+  char *reqbuf = malloc(sizeof(char)*buffer_size);
   const char *method;
   size_t method_len;
   const char *path;
@@ -53,122 +91,46 @@ static void* handle_request(void *arg __attribute__((unused))) {
   struct phr_header headers[max_headers];
   size_t num_headers;
   size_t prevbuflen = 0;
-  int ans = phr_parse_request(reqbuf, buffer_size, &method, &method_len, &path, &path_len,
-                              &minor_version, headers, &num_headers, prevbuflen);
-  (void)ans;
+
+  int ans = waeio_recv(clientfd, (uint8_t*)reqbuf, buffer_size);
+  if (ans < 0) {
+    free(reqbuf);
+    abort();
+  }
+
+  ans = phr_parse_request(reqbuf, ans, &method, &method_len, &path, &path_len,
+                          &minor_version, headers, &num_headers, prevbuflen);
+  if (ans > 0) {
+    ans = prepare_response(reqbuf, buffer_size, response_body, strlen(response_body));
+    if (ans < 0) {
+      free(reqbuf);
+      abort();
+    }
+    ans = waeio_send(clientfd, (uint8_t*)reqbuf, ans);
+    if (ans < 0) {
+      free(reqbuf);
+      abort();
+    }
+  } else { // FAILED
+    free(reqbuf);
+    abort();
+  }
+  free(reqbuf);
+  return NULL;
+}
+
+void* listener(wasio_fd_t *sockfd) {
+  wasio_fd_t fd = *sockfd;
+  while (true) {
+    wasio_fd_t conn;
+    int ans = waeio_accept(fd, &conn);
+    if (ans < 0) break;
+    ans = waeio_async(handle_request, conn);
+    if (ans < 0) break;
+  }
   return NULL;
 }
 
 int main(void) {
-  uint32_t nbytes = 0;
-  uint32_t nclients = 0;
-  struct wasio_pollfd *wfd = (struct wasio_pollfd*)malloc(sizeof(struct wasio_pollfd)*max_clients);
-  uint8_t **buffers = (uint8_t**)malloc(sizeof(uint8_t*)*max_clients);
-  for (uint32_t i = 0; i < max_clients; i++)
-    buffers[i] = NULL;
-  struct wasio_event ev;
-  wasio_fd_t sockfd, clientfd;
-  assert(wasio_init(wfd, max_clients) == WASIO_OK);
-  //printf("Setting up listener..\n");
-  assert(wasio_listen(wfd, &sockfd, 8080, 64) == WASIO_OK && sockfd == 0);
-  assert(wasio_notify_recv(wfd, sockfd) == WASIO_OK);
-  //printf("Done\n");
-
-  bool keep_going = true;
-  while (keep_going) {
-    uint32_t nevents = 0;
-    wasio_result_t ans = wasio_poll(wfd, &ev, max_clients, &nevents, 1000);
-    if (ans != WASIO_OK) {
-      //printf("Poll failed: error(%d): %s\n", (int)host_errno, host_strerror(host_errno));
-      break;
-    }
-
-    WASIO_EVENT_FOREACH(wfd, &ev, nevents, vfd, {
-        printf("vfd: %lld\n", vfd);
-        if (vfd == sockfd) {
-          //printf("Attempting to accept new client...\n");
-          ans = wasio_accept(wfd, sockfd, &clientfd);
-          if (ans != WASIO_OK) {
-            abort();
-          }
-          nclients++;
-          assert(wasio_notify_recv(wfd, clientfd) == WASIO_OK);
-          assert(wasio_notify_recv(wfd, sockfd) == WASIO_OK);
-        } else if (buffers[vfd] == NULL) { // Ready to receive
-          uint32_t nrecv = 0;
-          buffers[vfd] = (uint8_t*)malloc(sizeof(uint8_t)*buffer_size);
-          ans = wasio_recv(wfd, vfd, buffers[vfd], buffer_size, &nrecv);
-          if (ans != WASIO_OK) {
-            abort();
-          }
-          if (strncmp((const char*)buffers[vfd], "quit", strlen("quit")) == 0) {
-            keep_going = false;
-            while (nclients > 0) {
-              wasio_close(wfd, nclients--);
-            }
-            break;
-          } else {
-            uint32_t nsent = 0;
-            ans = wasio_send(wfd, vfd, buffers[vfd], nrecv, &nsent);
-            if (ans == WASIO_ERROR && (host_errno == HOST_EAGAIN || host_errno == HOST_EWOULDBLOCK)) {
-              assert(wasio_notify_send(wfd, vfd) == WASIO_OK);
-              continue;
-            }
-            if (ans == WASIO_OK && nsent < nrecv) {
-              assert(wasio_notify_send(wfd, vfd) == WASIO_OK); // TODO(dhil): remember nrecv - nsent
-              continue;
-            }
-            wasio_close(wfd, vfd);
-          }
-        } else { // Ready to send
-          ans = wasio_send(wfd, vfd, buffers[vfd], buffer_size, &nbytes);
-          if (ans != WASIO_OK) {
-            abort();
-          }
-          free(buffers[vfd]);
-          buffers[vfd] = NULL;
-          wasio_close(wfd, vfd);
-          nclients--;
-        }
-      });
-
-    /* //printf("Awaiting connection...\n"); */
-    /* wasio_fd_t clientfd; */
-    /* host_errno = 0; */
-    /* wasio_result_t ans = wasio_accept(wfd, sockfd, &clientfd); */
-    /* //printf("errno: %d - %s\n", host_errno, host_strerror(host_errno)); */
-    /* //printf("ans: %d\n", (int)ans); */
-    /* if (ans == WASIO_ERROR) { */
-    /*   //printf("ERROR\n"); */
-    /*   if (host_errno == HOST_EAGAIN || host_errno == HOST_EWOULDBLOCK) continue; */
-    /*   //printf("FATAL ERROR\n"); */
-    /*   abort(); */
-    /* } */
-    /* //printf("Got a connection!\n"); */
-    /* do { */
-    /*   host_errno = 0; */
-    /*   ans = wasio_recv(wfd, clientfd, readbuf, read_buffer_size, &nbytes); */
-    /*   if (ans < 0) { */
-    /*     //printf("errno: %d - %s\n", host_errno, host_strerror(host_errno)); */
-    /*     goto cleanup; */
-    /*   } */
-    /*   memcpy(writebuf, readbuf, nbytes); */
-    /* } while (ans == WASIO_ERROR && (host_errno == HOST_EAGAIN || host_errno == HOST_EWOULDBLOCK)); */
-
-    /* do { */
-    /*   host_errno = 0; */
-    /*   ans = wasio_send(wfd, clientfd, writebuf, nbytes, &nbytes); */
-    /*   if (ans < 0) { */
-    /*     //printf("errno: %d - %s\n", host_errno, host_strerror(host_errno)); */
-    /*     goto cleanup; */
-    /*   } */
-    /* } while (ans == WASIO_ERROR && (host_errno == HOST_EAGAIN || host_errno == HOST_EWOULDBLOCK)); */
-    /* wasio_close(wfd, clientfd); */
-    /* keep_going = false; */
-  }
-  wasio_close(wfd, sockfd);
-  wasio_finalize(wfd);
-  free(wfd);
-  free(buffers);
-  return 0;
+  return waeio_main(listener);
 }
