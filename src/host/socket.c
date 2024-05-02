@@ -15,27 +15,27 @@
 #include <wasm.h>
 #include <wasmtime.h>
 
-static wasm_functype_t *listen_sig = NULL;  // i32 i32 i32 -> i64
+static wasm_functype_t *listen_sig = NULL;  // i32 i32 i32 -> i32
 static wasmtime_func_t listenfn;
 static wasmtime_extern_t listenex;
 
-static wasm_functype_t *connect_sig = NULL;  // i32 i32 i32 i32 -> i64
+static wasm_functype_t *connect_sig = NULL;  // i32 i32 i32 i32 -> i32
 static wasmtime_func_t connectfn;
 static wasmtime_extern_t connectex;
 
-static wasm_functype_t *accept_sig = NULL; // i64 i32 -> i64
+static wasm_functype_t *accept_sig = NULL; // i32 i32 -> i32
 static wasmtime_func_t acceptfn;
 static wasmtime_extern_t acceptex;
 
-static wasm_functype_t *send_sig = NULL; // i64 i32 i32 i32 -> i32
+static wasm_functype_t *send_sig = NULL; // i32 i32 i32 i32 -> i32
 static wasmtime_func_t sendfn;
 static wasmtime_extern_t sendex;
 
-static wasm_functype_t *recv_sig = NULL; // i64 i32 i32 i32 -> i32
+static wasm_functype_t *recv_sig = NULL; // i32 i32 i32 i32 -> i32
 static wasmtime_func_t recvfn;
 static wasmtime_extern_t recvex;
 
-static wasm_functype_t *close_sig = NULL;   // i64 i32 -> i32
+static wasm_functype_t *close_sig = NULL;   // i32 i32 -> i32
 static wasmtime_func_t closefn;
 static wasmtime_extern_t closeex;
 
@@ -223,7 +223,7 @@ wasmtime_error_t* host_socket_init(wasmtime_linker_t *linker, wasmtime_context_t
 
   if (accept_sig == NULL) {
     // Accept
-    accept_sig = wasm_functype_new_2_1(NEW_WASM_I64, NEW_WASM_I32, NEW_WASM_I64);
+    accept_sig = wasm_functype_new_2_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, accept_sig, host_accept, NULL, NULL, &acceptfn);
     acceptex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = acceptfn } };
     LINK_HOST_FN("accept", acceptex);
@@ -231,7 +231,7 @@ wasmtime_error_t* host_socket_init(wasmtime_linker_t *linker, wasmtime_context_t
 
   if (listen_sig == NULL) {
     // Listen
-    listen_sig = wasm_functype_new_3_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I64);
+    listen_sig = wasm_functype_new_3_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, listen_sig, host_listen, NULL, NULL, &listenfn);
     listenex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = listenfn } };
     LINK_HOST_FN("listen", listenex);
@@ -239,7 +239,7 @@ wasmtime_error_t* host_socket_init(wasmtime_linker_t *linker, wasmtime_context_t
 
   if (connect_sig == NULL) {
     // Connect
-    connect_sig = wasm_functype_new_4_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I64);
+    connect_sig = wasm_functype_new_4_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, connect_sig, host_connect, NULL, NULL, &connectfn);
     connectex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = connectfn } };
     LINK_HOST_FN("connect", connectex);
@@ -247,14 +247,14 @@ wasmtime_error_t* host_socket_init(wasmtime_linker_t *linker, wasmtime_context_t
 
   if (recv_sig == NULL) {
     // Send and recv
-    recv_sig = wasm_functype_new_4_1(NEW_WASM_I64, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
+    recv_sig = wasm_functype_new_4_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, recv_sig, host_recv, NULL, NULL, &recvfn);
     recvex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = recvfn } };
     LINK_HOST_FN("recv", recvex);
   }
 
   if (send_sig == NULL) {
-    send_sig = wasm_functype_new_4_1(NEW_WASM_I64, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
+    send_sig = wasm_functype_new_4_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, send_sig, host_send, NULL, NULL, &sendfn);
     sendex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = sendfn } };
     LINK_HOST_FN("send", sendex);
@@ -262,7 +262,7 @@ wasmtime_error_t* host_socket_init(wasmtime_linker_t *linker, wasmtime_context_t
 
   if (close_sig == NULL) {
     // Close
-    close_sig = wasm_functype_new_2_1(NEW_WASM_I64, NEW_WASM_I32, NEW_WASM_I32);
+    close_sig = wasm_functype_new_2_1(NEW_WASM_I32, NEW_WASM_I32, NEW_WASM_I32);
     wasmtime_func_new(context, close_sig, host_close, NULL, NULL, &closefn);
     closeex = (wasmtime_extern_t){ .kind = WASMTIME_EXTERN_FUNC, .of = { .func = closefn } };
     LINK_HOST_FN("close", closeex);

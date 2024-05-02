@@ -7,28 +7,28 @@
 
 extern
 __wasm_import__("host_socket", "listen")
-int64_t host_listen(int32_t, int32_t, int32_t*);
+int32_t host_listen(int32_t, int32_t, int32_t*);
 
 __attribute__((unused))
 extern
 __wasm_import__("host_socket", "connect")
-int64_t host_connect(int32_t, int32_t, int32_t, int32_t*);
+int32_t host_connect(int32_t, int32_t, int32_t, int32_t*);
 
 extern
 __wasm_import__("host_socket", "accept")
-int64_t host_accept(int64_t, void*);
+int64_t host_accept(int32_t, void*);
 
 extern
 __wasm_import__("host_socket", "recv")
-int32_t host_recv(int64_t, uint8_t*, uint32_t, int32_t*);
+int32_t host_recv(int32_t, uint8_t*, uint32_t, int32_t*);
 
 extern
 __wasm_import__("host_socket", "send")
-int32_t host_send(int64_t, uint8_t*, uint32_t, int32_t*);
+int32_t host_send(int32_t, uint8_t*, uint32_t, int32_t*);
 
 extern
 __wasm_import__("host_socket", "close")
-int32_t host_close(int64_t, void*);
+int32_t host_close(int32_t, void*);
 
 extern
 __wasm_import__("host_poll", "poll")
@@ -57,7 +57,7 @@ wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd,
   return fd < 0 ? translate_error(host_errno) : wasio_wrap(wfd, fd, vfd);
 }
 
-wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_fd_t /* out */ *vfd) {
+wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int32_t preopened_fd, wasio_fd_t /* out */ *vfd) {
   uint32_t entry;
   if (freelist_next(wfd->fl, &entry) != FREELIST_OK)
     return WASIO_EFULL;
@@ -75,7 +75,7 @@ wasio_result_t wasio_init(struct wasio_pollfd *wfd, uint32_t capacity) {
   wfd->capacity = capacity;
   wfd->length = 0;
   wfd->vfds = (struct pollfd*)malloc(sizeof(struct pollfd)*capacity);
-  wfd->fds = (int64_t*)malloc(sizeof(int64_t)*capacity);
+  wfd->fds = (int32_t*)malloc(sizeof(int32_t)*capacity);
   pollin = host_pollin();
   pollout = host_pollout();
   for (uint32_t i = 0; i < capacity; i++) {
@@ -108,7 +108,7 @@ wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t
   if (ans < 0) return translate_error(host_errno);
 
   int fd = wfd->fds[vfd];
-  ans = host_accept((int64_t)fd, &host_errno);
+  ans = host_accept((int32_t)fd, &host_errno);
   if (ans < 0) return translate_error(host_errno);
 
   wfd->fds[(uint32_t)*new_conn_vfd] = ans;

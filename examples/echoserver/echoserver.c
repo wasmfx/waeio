@@ -38,7 +38,7 @@ int main(void) {
     }
 
     WASIO_EVENT_FOREACH(wfd, &ev, nevents, vfd, {
-        printf("vfd: %lld\n", vfd);
+        printf("vfd: %d\n", (int)vfd);
         if (vfd == sockfd) {
           //printf("Attempting to accept new client...\n");
           ans = wasio_accept(wfd, sockfd, &clientfd);

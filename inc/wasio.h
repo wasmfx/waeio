@@ -52,9 +52,11 @@ struct wasio_pollfd {
   uint32_t capacity;
   uint32_t length;
   freelist_t fl;
-  int64_t *fds;
+  int32_t *fds;
   struct pollfd *vfds;
 };
+static_assert(sizeof(int) == 4, "size of int");
+static_assert(sizeof(int32_t) == 4, "size of int32_t");
 static_assert(sizeof(struct wasio_pollfd) == 20, "size of struct wasio_pollfd");
 static_assert(offsetof(struct wasio_pollfd, capacity) == 0, "offset of capacity");
 static_assert(offsetof(struct wasio_pollfd, length) == 4, "offset of length");
@@ -64,7 +66,7 @@ static_assert(offsetof(struct wasio_pollfd, vfds) == 16, "offset of vfds");
 
 
 // Virtual file descriptor.
-typedef int64_t wasio_fd_t;
+typedef int32_t wasio_fd_t;
 
 typedef enum {
   WASIO_OK = 0,
@@ -79,7 +81,7 @@ wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd,
 
 extern
 __wasm_export__("wasio_wrap")
-wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int64_t preopened_fd, wasio_fd_t /* out */ *vfd);
+wasio_result_t wasio_wrap(struct wasio_pollfd *wfd, int32_t preopened_fd, wasio_fd_t /* out */ *vfd);
 
 extern
 __wasm_export__("wasio_init")
