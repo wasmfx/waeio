@@ -18,11 +18,6 @@ You can compile and run this example on Linux with:
 
 #define on_error(...) { fprintf(stderr, __VA_ARGS__); fflush(stderr); exit(1); }
 
-static inline uint32_t uint32_t_of_wasmtime_val_t(wasmtime_val_t v) {
-  assert(v.kind == WASMTIME_I32);
-  return (uint32_t)int32_t_of_wasmtime_val_t(v);
-}
-
 static void exit_with_error(const char *message, wasmtime_error_t *error,
                             wasm_trap_t *trap);
 
