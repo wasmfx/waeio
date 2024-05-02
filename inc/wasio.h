@@ -16,7 +16,7 @@ struct wasio_event {
   { (void)evs; \
     for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
       if ((wfd)->vfds[i].fd < 0) continue; /* TODO(dhil): we should check revents here */  \
-      { (wfd)->vfds[i].fd = -1; int64_t vfd = (int64_t)i; j++; BODY } \
+      { (wfd)->vfds[i].fd = -1; wasio_fd_t vfd = (wasio_fd_t)i; j++; BODY } \
     }\
   }
 #define WASIO_EVENT_INITIALISER(_max_events) NULL
@@ -39,7 +39,7 @@ struct wasio_event {
   { (void)evs; \
     for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
       if ((wfd)->vfds[i].fd >= 0 && (wfd)->vfds[i].revents != 0) { \
-        (wfd)->vfds[i].events = 0; (wfd)->vfds[i].revents = 0; int64_t vfd = (int64_t)i; j++; BODY \
+        (wfd)->vfds[i].events = 0; (wfd)->vfds[i].revents = 0; wasio_fd_t vfd = (wasio_fd_t)i; j++; BODY \
       } \
     } \
   }

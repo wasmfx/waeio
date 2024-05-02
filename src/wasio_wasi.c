@@ -1,3 +1,4 @@
+/* Needs capability: wasmtime run -S preview2=n -S tcplisten=127.0.0.1:9000 --env 'LISTEN_FDS=1' tcp_listenfd_server.wasm */
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>

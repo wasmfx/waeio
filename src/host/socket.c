@@ -78,7 +78,7 @@ DEFINE_BINDING(host_connect) {
     WRITE_ERRNO("host_connect", 3);
   }
 
-  return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));
+  return result1(results, wasmtime_val_t_of_int32_t((int32_t)sockfd));
 }
 
 DEFINE_BINDING(host_accept) {
@@ -86,14 +86,15 @@ DEFINE_BINDING(host_accept) {
   assert(nresults == 1);
 
   // Unpack socket fd.
-  int64_t sockfd = int64_t_of_wasmtime_val_t(args[0]);
+  int32_t sockfd = int32_t_of_wasmtime_val_t(args[0]);
 
   // Perform the system call.
   int ans = accept(sockfd, NULL, 0);
 
   if (ans < 0) {
+    printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno);
     WRITE_ERRNO("host_accept", 1);
-    return result1(results, wasmtime_val_t_of_int64_t((int64_t)ans));
+    return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
   }
 
   // Set nonblocking
@@ -102,7 +103,9 @@ DEFINE_BINDING(host_accept) {
     WRITE_ERRNO("host_accept", 1);
   }
 
-  return result1(results, wasmtime_val_t_of_int64_t((int64_t)ans));
+  printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno);
+
+  return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
 }
 
 DEFINE_BINDING(host_listen) {
@@ -120,12 +123,12 @@ DEFINE_BINDING(host_listen) {
   int opt = 1;
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
     WRITE_ERRNO("host_listen", 2);
-    return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));
+    return result1(results, wasmtime_val_t_of_int32_t((int32_t)sockfd));
   }
 
   if (sockfd < 0) {
     WRITE_ERRNO("host_listen", 2);
-    return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));
+    return result1(results, wasmtime_val_t_of_int32_t((int32_t)sockfd));
   }
 
   // Bind the socket.
@@ -136,14 +139,14 @@ DEFINE_BINDING(host_listen) {
   int ans = bind(sockfd, (struct sockaddr*)&addr, sizeof(addr));
   if (ans < 0) {
     WRITE_ERRNO("host_listen", 2);
-    return result1(results, wasmtime_val_t_of_int64_t((int64_t)ans));
+    return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
   }
 
   // Start listening.
   ans = listen(sockfd, backlog);
   if (ans < 0) {
     WRITE_ERRNO("host_listen", 2);
-    return result1(results, wasmtime_val_t_of_int64_t((int64_t)ans));
+    return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
   }
 
   // Set nonblocking
@@ -152,7 +155,9 @@ DEFINE_BINDING(host_listen) {
     WRITE_ERRNO("host_listen", 2);
   }
 
-  return result1(results, wasmtime_val_t_of_int64_t((int64_t)sockfd));
+  printf("[host_listen]: sockfd = %d, errno = %s (%d)\n", sockfd, strerror(errno), errno);
+
+  return result1(results, wasmtime_val_t_of_int32_t((int32_t)sockfd));
 }
 
 DEFINE_BINDING(host_recv) {
@@ -160,7 +165,7 @@ DEFINE_BINDING(host_recv) {
   assert(nresults == 1);
 
   // Unpack fd, buffer offset, and length
-  int64_t sockfd = int64_t_of_wasmtime_val_t(args[0]);
+  int32_t sockfd = int32_t_of_wasmtime_val_t(args[0]);
   uint32_t boffset = uint32_t_of_wasmtime_val_t(args[1]);
   uint32_t blen = uint32_t_of_wasmtime_val_t(args[2]);
 
@@ -183,7 +188,7 @@ DEFINE_BINDING(host_send) {
   assert(nresults == 1);
 
   // Unpack fd, buffer offset, and length
-  int64_t sockfd = int64_t_of_wasmtime_val_t(args[0]);
+  int32_t sockfd = int32_t_of_wasmtime_val_t(args[0]);
   uint32_t boffset = uint32_t_of_wasmtime_val_t(args[1]);
   uint32_t blen = uint32_t_of_wasmtime_val_t(args[2]);
 
@@ -206,7 +211,7 @@ DEFINE_BINDING(host_close) {
   assert(nresults == 1);
 
   // Unpack fd.
-  int64_t sockfd = int64_t_of_wasmtime_val_t(args[0]);
+  int32_t sockfd = int32_t_of_wasmtime_val_t(args[0]);
 
   // Perform the system call.
   int ans = close((int)sockfd);

@@ -16,7 +16,7 @@ int32_t host_connect(int32_t, int32_t, int32_t, int32_t*);
 
 extern
 __wasm_import__("host_socket", "accept")
-int64_t host_accept(int32_t, void*);
+int32_t host_accept(int32_t, void*);
 
 extern
 __wasm_import__("host_socket", "recv")
@@ -46,14 +46,16 @@ static short int pollin = 0;
 static short int pollout = 0;
 
 static inline wasio_result_t translate_error(int32_t errno) {
-  if (errno == HOST_EAGAIN || errno == HOST_EWOULDBLOCK)
+  if (errno == HOST_EAGAIN || errno == HOST_EWOULDBLOCK) {
+    printf("[translate_error] errno = %d, WASIO_EAGAIN\n", errno);
     return WASIO_EAGAIN;
-  else
+  } else {
     return WASIO_ERROR;
+  }
 }
 
 wasio_result_t wasio_listen(struct wasio_pollfd *wfd, wasio_fd_t /* out */ *vfd, uint32_t port, uint32_t backlog) {
-  int64_t fd = host_listen(port, backlog, &host_errno);
+  int32_t fd = host_listen(port, backlog, &host_errno);
   return fd < 0 ? translate_error(host_errno) : wasio_wrap(wfd, fd, vfd);
 }
 
@@ -104,11 +106,12 @@ wasio_result_t wasio_poll( struct wasio_pollfd *wfd
 }
 
 wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t *new_conn_vfd) {
-  int ans = (int)wasio_wrap(wfd, -1, new_conn_vfd);
-  if (ans < 0) return translate_error(host_errno);
+  wasio_result_t res = wasio_wrap(wfd, -1, new_conn_vfd);
+  if (res != WASIO_OK) return res;
 
   int fd = wfd->fds[vfd];
-  ans = host_accept((int32_t)fd, &host_errno);
+  int ans = host_accept((int32_t)fd, &host_errno);
+  printf("[wasio_accept] ans = %d, errno = %s (%d)\n", ans, host_strerror(host_errno), host_errno);
   if (ans < 0) return translate_error(host_errno);
 
   wfd->fds[(uint32_t)*new_conn_vfd] = ans;
@@ -135,6 +138,7 @@ wasio_result_t wasio_send(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf
 wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
   if (host_close(wfd->vfds[vfd].fd, &host_errno) != 0) return translate_error(host_errno);
   wfd->vfds[vfd].fd = -1;
+  wfd->vfds[vfd].revents = 0;
   wfd->fds[vfd] = -1;
   wfd->length--;
   assert(freelist_reclaim(wfd->fl, vfd) == FREELIST_OK);

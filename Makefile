@@ -1,5 +1,5 @@
 MODE=debug
-ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
+ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify --pass-arg=asyncify-ignore-imports
 WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384
 ifeq ($(MODE), debug)
