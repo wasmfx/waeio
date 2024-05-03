@@ -33,6 +33,8 @@
 /*   } while(false); */
 #define debug_println(fn, fd, msg) {};
 
+#define FIBER_KILL_SIGNAL INT32_MIN
+
 static const uint32_t buffer_size = 1 << 16;
 static const uint32_t max_headers = 100;
 static const uint32_t max_clients = 500;
@@ -73,7 +75,7 @@ static inline void fq_swap(struct fiber_queue **frontq, struct fiber_queue **rea
 
 static struct wasio_pollfd wfd;
 static struct wasio_event ev;
-static struct fiber_closure fibers[500];
+static struct fiber_closure fibers[501];
 
 typedef enum { ASYNC = 0, YIELD = 1, RECV = 2, SEND = 3, QUIT = 4 } cmd_tag_t;
 
@@ -97,9 +99,9 @@ static inline cmd_t cmd_make(cmd_tag_t tag, wasio_fd_t fd) {
   return cmd;
 }
 
-static inline void yield() {
+static inline int yield() {
   cmd = cmd_make(YIELD, 0);
-  (void)fiber_yield(&cmd);
+  return (int)(intptr_t)fiber_yield(&cmd);
 }
 
 static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uint32_t bufsize) {
@@ -109,7 +111,8 @@ static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
   /* printf("[w_recv(%d)] receiving\n", fd); */
   while ( (ans = wasio_recv(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
     debug_println("w_recv", fd, "yielding");
-    (void)fiber_yield(&cmd);
+    int code = (int)(intptr_t)fiber_yield(&cmd);
+    if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
     debug_println("w_recv", fd, "continued");
   }
   return ans == WASIO_OK ? nbytes : -1;
@@ -121,7 +124,8 @@ static int32_t w_send(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
   wasio_result_t ans;
   while ( (ans = wasio_send(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
     debug_println("w_send", fd, "yielding");
-    (void)fiber_yield(&cmd);
+    int code = (int)(intptr_t)fiber_yield(&cmd);
+    if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
     debug_println("w_send", fd, "continued");
   }
   return ans == WASIO_OK ? nbytes : -1;
@@ -145,10 +149,12 @@ static wasio_fd_t w_accept(struct wasio_pollfd *wfd, wasio_fd_t fd) {
     if (ans != WASIO_EAGAIN) return ans == WASIO_OK ? conn : -1;
     cmd = cmd_make(RECV, fd);
     debug_println("w_accept", fd, "yielding");
-    (void)fiber_yield(&cmd);
+    int code = (int)(intptr_t)fiber_yield(&cmd);
+    if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
     debug_println("w_accept", fd, "continued");
   }
-  abort();
+
+  abort(); // unreachable.
   return -1;
 }
 
@@ -241,7 +247,7 @@ static void* handle_connection(wasio_fd_t clientfd) {
     /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
     if (ans < 0) {
       debug_println("handle_connection", clientfd, "I/O recv failure");
-      abort();
+      return NULL; // bail out.
     }
     prevbuflen = buflen;
     buflen += ans;
@@ -272,22 +278,26 @@ static void* handle_connection(wasio_fd_t clientfd) {
     }
   }
 
+  int nbytes = 0;
   if (ans >= 0) {
     assert(ans < 3);
     if (ans == 1)
-      ans = response_ok(reqbuf, buffer_size, response_body, (uint32_t)strlen(response_body));
+      nbytes = response_ok(reqbuf, buffer_size, response_body, (uint32_t)strlen(response_body));
     else if (ans == 2)
-      ans = response_ok(reqbuf, buffer_size, "OK bye...\n", (uint32_t)strlen("OK bye...\n"));
+      nbytes = response_ok(reqbuf, buffer_size, "OK bye...\n", (uint32_t)strlen("OK bye...\n"));
     else
-      ans = response_notfound(reqbuf, buffer_size, NULL, 0);
+      nbytes = response_notfound(reqbuf, buffer_size, NULL, 0);
   } else {
-    ans = response_err(reqbuf, buffer_size, "I/O failure", (uint32_t)strlen("I/O failure"));
+    nbytes = response_err(reqbuf, buffer_size, "I/O failure", (uint32_t)strlen("I/O failure"));
   }
 
-  ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans); // TODO(dhil): send may be partial
-  if (ans < 0) {
+  nbytes = w_send(&wfd, clientfd, (uint8_t*)reqbuf, nbytes); // TODO(dhil): send may be partial
+  if (nbytes < 0) {
     debug_println("handle_connection", clientfd, "I/O send failure");
-    abort();
+  }
+  if (ans == 2) { // quitting.
+    cmd = cmd_make(QUIT, -1);
+    return fiber_yield(&cmd);
   }
 
   return NULL;
@@ -297,7 +307,8 @@ void* listener(wasio_fd_t sockfd) {
   while (true) {
     // Keep yielding if we are out of space.
     while (clients == max_clients) {
-      yield();
+      int ans = yield();
+      if (ans == FIBER_KILL_SIGNAL) return (void*)(intptr_t)FIBER_KILL_SIGNAL;
     }
 
     wasio_fd_t conn = w_accept(&wfd, sockfd);
@@ -312,22 +323,24 @@ void* listener(wasio_fd_t sockfd) {
     cmd.clo.fd = conn;
     cmd.tag = ASYNC;
     debug_println("listener", sockfd, "yielding");
-    int ans = (int)fiber_yield(&cmd);
+    int ans = (int)(intptr_t)fiber_yield(&cmd);
     debug_println("listener", sockfd, "continued");
-    if (ans < 0) break;
+    if (ans == FIBER_KILL_SIGNAL) return (void*)(intptr_t)FIBER_KILL_SIGNAL;
   }
-  return NULL;
+  return (void*)(intptr_t)0;
 }
 
 static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, struct fiber_closure clo, void *ret __attribute__((unused)), fiber_result_t res) {
   debug_println("handle_request", clo.fd, "entered");
   switch (res) {
-  case FIBER_OK:
+  case FIBER_OK: {
     debug_println("handle_request", clo.fd, "FIBER_OK");
     assert(wasio_close(wfd, clo.fd) == WASIO_OK);
     fiber_free(clo.fiber);
+    fibers[clo.fd].fiber = NULL;
     clients--;
     return true;
+  }
     break;
   case FIBER_ERROR:
     debug_println("handle_request", clo.fd, "FIBER_ERROR");
@@ -352,9 +365,10 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
       debug_println("handle_request", clo.fd, " -> SEND");
       assert(wasio_notify_send(wfd, cmd.fd) == WASIO_OK);
       return true;
-    case QUIT:
+    case QUIT: {
       debug_println("handle_request", clo.fd, " -> QUIT");
       return false;
+    }
     default:
       debug_println("handle_request", clo.fd, " -> UNKNOWN");
       abort();
@@ -368,6 +382,11 @@ int main(void) {
   // Setup fiber queues.
   struct fiber_queue *frontq = fq_new(max_clients),
                      *rearq = fq_new(max_clients);
+
+  // Initialise tracked fiber closures.
+  for (uint32_t i = 0; i < 501; i++) {
+    fibers[i] = (struct fiber_closure){ .fiber = NULL, .fd = -1 };
+  }
 
   // Initialise the I/O subsystem.
   assert(wasio_init(&wfd, max_clients) == WASIO_OK);
@@ -416,6 +435,18 @@ int main(void) {
     // Swap queues and reset new rear.
     fq_swap(&frontq, &rearq);
     rearq->length = 0;
+  }
+
+  for (uint32_t i = 0; i < 501; i++) {
+    if (fibers[i].fiber != NULL) {
+      printf("Killing %u\n", i);
+      printf("Resuming %u with kill signal\n", i);
+      (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status); // TODO(dhil): Double check that the fiber exited.
+      assert(status == FIBER_OK);
+      free(fibers[i].fiber);
+      fibers[i].fiber = NULL;
+      clients--;
+    }
   }
 
   wasio_finalize(&wfd);
