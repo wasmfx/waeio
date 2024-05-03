@@ -24,21 +24,20 @@ echoserver_host: inc/host/errno.h src/host/errno.c examples/echoserver/echoserve
 	$(CC) src/host/socket.c src/host/poll.c examples/echoserver/driver.c -o echoserver_driver $(CFLAGS)
 	chmod +x echoserver_host_asyncify.wasm
 
-.PHONY: httpserver_host_asyncify
-httpserver_host_asyncify: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c
-	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/fiber_asyncify.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host.wasm -I vendor/picohttpparser
-	$(ASYNCIFY) httpserver_host.wasm -o httpserver_host_asyncify.wasm
-	$(CC) src/host/socket.c src/host/poll.c examples/httpserver/driver.c -o httpserver_driver $(CFLAGS)
+httpserver_host_asyncify.wasm:  inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c src/**/*.c inc/**/*.h
+	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/fiber_asyncify.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host_asyncfiy.pre.wasm -I vendor/picohttpparser
+	$(ASYNCIFY) httpserver_host_asyncfiy.pre.wasm -o httpserver_host_asyncify.wasm
 	chmod +x httpserver_host_asyncify.wasm
 
-.PHONY: httpserver_host_wasmfx
-httpserver_host_wasmfx: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c
+httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c src/**/*.c inc/**/*.h
 	$(WASICC) -Wl,--export-table,--export-memory -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/freelist.c src/host/errno.c src/fiber_wasmfx.c src/wasio_host.c src/waeio.c $(WASIFLAGS) examples/httpserver/httpserver.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
 	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.pre.wasm "benchmark" -o httpserver_host_wasmfx.wasm
-
-	$(CC) src/host/socket.c src/host/poll.c examples/httpserver/driver.c -o httpserver_driver $(CFLAGS)
 	chmod +x httpserver_host_wasmfx.wasm
+
+.PHONY: httpserver_host
+httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c httpserver_host_asyncify.wasm httpserver_host_wasmfx.wasm
+	$(CC) src/host/socket.c src/host/poll.c examples/httpserver/driver.c -o httpserver_driver $(CFLAGS)
 
 .PHONY: hello
 hello: examples/hello/hello.c examples/hello/driver.c
