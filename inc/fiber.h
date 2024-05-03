@@ -24,4 +24,14 @@ typedef enum { FIBER_OK = 0, FIBER_YIELD = 1, FIBER_ERROR = 2 } fiber_result_t;
 
 /** Resumes a given `fiber` with argument `arg`. **/
 void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result);
+
+
+/** Initializes fiber support. Must be called exactly once before using any of
+    the other fiber_* functions. **/
+void fiber_init();
+
+/** Un-initializes fiber support. If fiber_initialize has ever beed called, then
+    fiber_uninitialize must called prior to exiting the program. **/
+void fiber_finalize();
+
 #endif
