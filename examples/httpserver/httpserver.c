@@ -26,6 +26,13 @@
 #define wasi_print_debug(str) \
     wasi_print(__FILE__ ":" STRINGIZE(__LINE__) ": " str "\n")
 
+
+/* #define debug_println(fn, fd, msg) do {               \ */
+/*     printf("[%s(%d)] %s\n", fn, fd, msg); \ */
+/*     fflush(stdout);\ */
+/*   } while(false); */
+#define debug_println(fn, fd, msg) {};
+
 static const uint32_t buffer_size = 1 << 16;
 /* static const uint32_t max_headers = 100; */
 static const uint32_t max_clients = 500;
@@ -112,9 +119,11 @@ static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
   cmd = cmd_make(RECV, fd);
   uint32_t nbytes;
   wasio_result_t ans;
+  /* printf("[w_recv(%d)] receiving\n", fd); */
   while ( (ans = wasio_recv(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
-    wasi_print("[w_recv] yielding\n");
+    debug_println("w_recv", fd, "yielding");
     (void)fiber_yield(&cmd);
+    debug_println("w_recv", fd, "continued");
   }
   return ans == WASIO_OK ? nbytes : -1;
 }
@@ -124,8 +133,9 @@ static int32_t w_send(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
   uint32_t nbytes;
   wasio_result_t ans;
   while ( (ans = wasio_send(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
-    wasi_print("[w_send] yielding\n");
+    debug_println("w_send", fd, "yielding");
     (void)fiber_yield(&cmd);
+    debug_println("w_send", fd, "continued");
   }
   return ans == WASIO_OK ? nbytes : -1;
 }
@@ -135,21 +145,21 @@ static wasio_fd_t w_accept(struct wasio_pollfd *wfd, wasio_fd_t fd) {
   while (true) {
     wasio_fd_t conn = -1;
     wasio_result_t ans = wasio_accept(wfd, fd, &conn);
-    switch (ans) {
-    case WASIO_OK:
-      wasi_print("[w_accept] ans is OK\n");
-      break;
-    case WASIO_EAGAIN:
-      wasi_print("[w_accept] ans is EAGAIN\n");
-      break;
-    default:
-      wasi_print("[w_accept] ans is UNKNOWN\n");
-    }
+    /* switch (ans) { */
+    /* case WASIO_OK: */
+    /*   debug_println("w_accept", fd, "ans is OK"); */
+    /*   break; */
+    /* case WASIO_EAGAIN: */
+    /*   debug_println("w_accept", fd, "ans is EAGAIN"); */
+    /*   break; */
+    /* default: */
+    /*   debug_println("w_accept", fd, "ans is UNKNOWN"); */
+    /* } */
     if (ans != WASIO_EAGAIN) return ans == WASIO_OK ? conn : -1;
     cmd = cmd_make(RECV, fd);
-    printf("[w_accept] yielding %d with tag %d\n", fd, cmd.tag);
+    debug_println("w_accept", fd, "yielding");
     (void)fiber_yield(&cmd);
-    printf("[w_accept] continued\n");
+    debug_println("w_accept", fd, "continued");
   }
   abort();
   return -1;
@@ -175,8 +185,8 @@ static int prepare_response(char *buffer, size_t buff_size, const char *body,
         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
         months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
     // TODO, maybe allow closing?
-    // response_length += snprintf(buffer + response_length, buff_size - response_length,
-    // "Connection: close\r\n");
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+                                "Connection: close\r\n");
     response_length += snprintf(buffer + response_length, buff_size - response_length,
         "Content-Length: %d\r\n", content_length);
     response_length += snprintf(buffer + response_length, buff_size - response_length,
@@ -217,7 +227,7 @@ const char *response_body =
     "very deep, or she fell very slowly, for she had plenty of time as she went down to look about "
     "her and to wonder what was going to happen next. First, she tried to look down and make out "
     "what she was coming to, but it was too dark to see anything; then she looked at the sides of "
-    "the well, and noticed that they were filled with cupboards......";
+    "the well, and noticed that they were filled with cupboards......\n";
 
 
 static void* handle_connection(wasio_fd_t clientfd) {
@@ -234,10 +244,10 @@ static void* handle_connection(wasio_fd_t clientfd) {
   int32_t ans = 0;
   while (true) {
     ans = w_recv(&wfd, clientfd, (uint8_t*)reqbuf+buflen, sizeof(reqbuf) - buflen);
-    printf("[handle_connection] request:\n%s\n", reqbuf);
-    printf("[handle_connection] 1. ans = %d\n", ans);
+    /* printf("[handle_connection(%d)] bytes recv'd: %d\n", clientfd, ans); */
+    /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
     if (ans < 0) {
-      wasi_print("[handle_connection] 1. ans < 0\n");
+      debug_println("handle_connection", clientfd, "I/O recv failure");
       abort();
     }
     prevbuflen = buflen;
@@ -245,12 +255,12 @@ static void* handle_connection(wasio_fd_t clientfd) {
 
     /* ans = phr_parse_request(reqbuf, buflen, &method, &method_len, &path, &path_len, */
     /*                       &minor_version, headers, &num_headers, prevbuflen); */
-    ans = strncmp(reqbuf, "GET / HTTP/1.1", strlen("GET / HTTP/1.1"));
-    printf("[handle_connection] ans = %d\n", ans);
+    ans = strncmp(reqbuf, "GET / HTTP/1.1", strlen("GET / HTTP/1.1")) == 0 ? 0 : strncmp(reqbuf, "GET /favicon.ico HTTP/1.1", strlen("GET /favicon.ico HTTP/1.1"));
     if (ans == 0) break;
-    ans = strncmp(reqbuf, "GET /favicon.ico HTTP/1.1", strlen("GET /favicon.ico HTTP/1.1"));
-    if (ans == 0) break;
-    else if (ans == -1) abort();
+    else if (ans == -1) {
+      debug_println("handle_connection", clientfd, "Http parse failure");
+      abort();
+    }
     assert(ans == -2);
     (void)prevbuflen;
     /* if (buflen == buffer_size) abort(); */
@@ -259,19 +269,20 @@ static void* handle_connection(wasio_fd_t clientfd) {
   if (ans >= 0) {
     ans = prepare_response(reqbuf, buffer_size, response_body, strlen(response_body));
     if (ans < 0) {
-      wasi_print("[handle_connection] 2. ans < 0\n");
+      debug_println("handle_connection", clientfd, "failed to prepare response");
       abort();
     }
     ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans);
     if (ans < 0) {
-      wasi_print("[handle_connection] 3. ans < 0\n");
-        abort();
+      debug_println("handle_connection", clientfd, "I/O send failure");
+      abort();
     }
   } else { // FAILED
-    wasi_print("[handle_connection] 4. ans <= 0\n");
+    debug_println("handle_connection", clientfd, "failure");
     abort();
   }
 
+  assert(wasio_close(&wfd, clientfd) == WASIO_OK);
   return NULL;
 }
 
@@ -282,10 +293,10 @@ void* listener(wasio_fd_t sockfd) {
       yield();
     }
 
-    wasi_print("[listener] about to invoke w_accept.\n");
     wasio_fd_t conn = w_accept(&wfd, sockfd);
+    /* printf("[listener(%d)] accepted %d\n", sockfd, conn); */
     if (conn < 0) {
-      wasi_print("[listener] new conn is negative.\n");
+      debug_println("listener", sockfd, "I/O failure");
       break;
     }
     clients++;
@@ -293,49 +304,51 @@ void* listener(wasio_fd_t sockfd) {
     cmd.clo.fiber = fiber_alloc((fiber_entry_point_t)(void*)handle_connection);
     cmd.clo.fd = conn;
     cmd.tag = ASYNC;
-    printf("[listener] yielding %d with tag %d\n", sockfd, cmd.tag);
-    if ((int)fiber_yield(&cmd) < 0) break;
+    debug_println("listener", sockfd, "yielding");
+    int ans = (int)fiber_yield(&cmd);
+    debug_println("listener", sockfd, "continued");
+    if (ans < 0) break;
   }
   return NULL;
 }
 
 static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, struct fiber_closure clo, void *ret __attribute__((unused)), fiber_result_t res) {
-  wasi_print("[handle_request] entered.\n");
+  debug_println("handle_request", clo.fd, "entered");
   switch (res) {
   case FIBER_OK:
-    wasi_print("[handle_request] FIBER_OK\n");
-    assert(wasio_close(wfd, clo.fd) == WASIO_OK);
+    debug_println("handle_request", clo.fd, "FIBER_OK");
     fiber_free(clo.fiber);
     clients--;
     return true;
     break;
   case FIBER_ERROR:
-    wasi_print("[handle_request] FIBER_ERROR\n");
+    debug_println("handle_request", clo.fd, "FIBER_ERROR");
     abort();
   case FIBER_YIELD: {
-    printf("[handle_request] FIBER_YIELD with tag %d and fd %d\n", cmd.tag, cmd.fd);
+    debug_println("handle_request", clo.fd, "FIBER_YIELD");
     switch (cmd.tag) {
     case ASYNC:
-      wasi_print("[handle_request] -> ASYNC\n");
-      fibers[cmd.clo.fd] = clo;
+      debug_println("handle_request", clo.fd, " -> ASYNC");
+      debug_println("handle_request", cmd.clo.fd, " <- ASYNC");
+      fibers[cmd.clo.fd] = cmd.clo;
       fq_push(rearq, cmd.clo); // fall-through
     case YIELD:
-      wasi_print("[handle_request] -> YIELD\n");
+      debug_println("handle_request", clo.fd, " -> YIELD");
       fq_push(rearq, clo);
       return true;
     case RECV:
-      wasi_print("[handle_request] -> RECV\n");
+      debug_println("handle_request", clo.fd, " -> RECV");
       assert(wasio_notify_recv(wfd, cmd.fd) == WASIO_OK);
       return true;
     case SEND:
-      wasi_print("[handle_request] -> SEND\n");
+      debug_println("handle_request", clo.fd, " -> SEND");
       assert(wasio_notify_send(wfd, cmd.fd) == WASIO_OK);
       return true;
     case QUIT:
-      wasi_print("[handle_request] -> QUIT\n");
+      debug_println("handle_request", clo.fd, " -> QUIT");
       return false;
     default:
-      printf("[handle_request] -> UNKNOWN tag %d\n", cmd.tag);
+      debug_println("handle_request", clo.fd, " -> UNKNOWN");
       abort();
     }
   }
@@ -365,27 +378,27 @@ int main(void) {
   // Start server loop
   bool keep_going = true;
   fiber_result_t status = FIBER_OK;
+  wasi_print("Ready...\n");
   while (keep_going) {
-    wasi_print("[main] Ready to run fibers.\n");
+    debug_println("main", servfd, "Ready to run fibers");
+    /* printf("[main(%d)] clients = %d\n", servfd, clients); */
     // Run ready fibers.
     for (uint32_t i = 0; i < frontq->length; i++) {
-      wasi_print("[main] Extract fiber closure.\n");
+      debug_println("main", servfd, "Extracting fiber closure");
       struct fiber_closure clo = frontq->q[i];
-      printf("[main] resuming %d\n", clo.fd);
+      debug_println("main", servfd, "Resuming");
       void *ans = fiber_resume(clo.fiber, (void*)clo.fd, &status);
       keep_going = handle_request(&wfd, rearq, clo, ans, status);
-      printf("[main] keep_going = %s\n", keep_going ? "true" : "false");
       if (!keep_going) break;
     }
-    printf("[main] keep_going = %s\n", keep_going ? "true" : "false");
     if (!keep_going) break;
 
     // Poll I/O
     uint32_t nevents;
     assert(wasio_poll(&wfd, &ev, max_clients, &nevents, 1000) == WASIO_OK);
-    wasi_print("[main] poll OK\n");
+    debug_println("main", servfd, "Poll OK");
     WASIO_EVENT_FOREACH(&wfd, &ev, nevents, fd, {
-        printf("[main] foreach %d\n", fd);
+        debug_println("main", fd, "Foreach");
         // Run the fiber.
         void *ans = fiber_resume(fibers[fd].fiber, (void*)0, &status);
         keep_going = handle_request(&wfd, rearq, fibers[fd], ans, status);

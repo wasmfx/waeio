@@ -47,7 +47,7 @@ static short int pollout = 0;
 
 static inline wasio_result_t translate_error(int32_t errno) {
   if (errno == HOST_EAGAIN || errno == HOST_EWOULDBLOCK) {
-    printf("[translate_error] errno = %d, WASIO_EAGAIN\n", errno);
+    //printf("[translate_error] errno = %d, WASIO_EAGAIN\n", errno);
     return WASIO_EAGAIN;
   } else {
     return WASIO_ERROR;
@@ -108,7 +108,7 @@ wasio_result_t wasio_poll( struct wasio_pollfd *wfd
 wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t *new_conn_vfd) {
   int fd = wfd->fds[vfd];
   int ans = host_accept((int32_t)fd, &host_errno);
-  printf("[wasio_accept] conn_vfd = %d, physfd = %d, errno = %s (%d)\n", *new_conn_vfd, ans, host_strerror(host_errno), host_errno);
+  //printf("[wasio_accept] conn_vfd = %d, physfd = %d, errno = %s (%d)\n", *new_conn_vfd, ans, host_strerror(host_errno), host_errno);
   if (ans < 0) return translate_error(host_errno);
 
   wasio_result_t res = wasio_wrap(wfd, ans, new_conn_vfd);

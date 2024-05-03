@@ -92,7 +92,7 @@ DEFINE_BINDING(host_accept) {
   int ans = accept(sockfd, NULL, 0);
 
   if (ans < 0) {
-    printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno);
+    /* printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno); */
     WRITE_ERRNO("host_accept", 1);
     return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
   }
@@ -103,7 +103,7 @@ DEFINE_BINDING(host_accept) {
     WRITE_ERRNO("host_accept", 1);
   }
 
-  printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno);
+  /* printf("[host_accept]: sockfd = %d, ans = %d, errno = %s (%d)\n", sockfd, ans, strerror(errno), errno); */
 
   return result1(results, wasmtime_val_t_of_int32_t((int32_t)ans));
 }
@@ -155,7 +155,7 @@ DEFINE_BINDING(host_listen) {
     WRITE_ERRNO("host_listen", 2);
   }
 
-  printf("[host_listen]: sockfd = %d, errno = %s (%d)\n", sockfd, strerror(errno), errno);
+  /* printf("[host_listen]: sockfd = %d, errno = %s (%d)\n", sockfd, strerror(errno), errno); */
 
   return result1(results, wasmtime_val_t_of_int32_t((int32_t)sockfd));
 }
