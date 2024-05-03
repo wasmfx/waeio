@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #include "fiber.h"
-#include "wasm.h"
+#include "wasm_utils.h"
 
 // Type for indices into the continuation table `$conts` on the wasm side. In
 // this implementation, we consider `fiber_t` (which is a pointer to an
@@ -34,19 +34,19 @@ static size_t free_list_size = 0;
 
 
 extern
-__wasm_import("fiber_wasmfx_imports", "wasmfx_grow_cont_table")
+__wasm_import__("fiber_wasmfx_imports", "wasmfx_grow_cont_table")
 void wasmfx_grow_cont_table(size_t);
 
 extern
-__wasm_import("fiber_wasmfx_imports", "wasmfx_indexed_cont_new")
+__wasm_import__("fiber_wasmfx_imports", "wasmfx_indexed_cont_new")
 void wasmfx_indexed_cont_new(fiber_entry_point_t, cont_table_index_t);
 
 extern
-__wasm_import("fiber_wasmfx_imports", "wasmfx_indexed_resume")
+__wasm_import__("fiber_wasmfx_imports", "wasmfx_indexed_resume")
 void* wasmfx_indexed_resume(size_t fiber_index, void *arg, fiber_result_t *result);
 
 extern
-__wasm_import("fiber_wasmfx_imports", "wasmfx_suspend")
+__wasm_import__("fiber_wasmfx_imports", "wasmfx_suspend")
 void* wasmfx_suspend(void *arg);
 
 
@@ -85,7 +85,7 @@ void wasmfx_release_table_index(cont_table_index_t table_index) {
 }
 
 
-__wasm_export("fiber_alloc")
+__wasm_export__("fiber_alloc")
 fiber_t fiber_alloc(fiber_entry_point_t entry) {
   cont_table_index_t table_index = wasmfx_acquire_table_index();
   wasmfx_indexed_cont_new(entry, table_index);
@@ -93,7 +93,7 @@ fiber_t fiber_alloc(fiber_entry_point_t entry) {
   return (fiber_t) table_index;
 }
 
-__wasm_export("fiber_free")
+__wasm_export__("fiber_free")
 void fiber_free(fiber_t fiber) {
   cont_table_index_t table_index = (cont_table_index_t) fiber;
 
@@ -102,22 +102,22 @@ void fiber_free(fiber_t fiber) {
   wasmfx_release_table_index(table_index);
 }
 
-__wasm_export("fiber_resume")
+__wasm_export__("fiber_resume")
 void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
   cont_table_index_t table_index = (cont_table_index_t) fiber;
   return wasmfx_indexed_resume(table_index, arg, result);
 }
 
-__wasm_export("fiber_yield")
+__wasm_export__("fiber_yield")
 void* fiber_yield(void *arg) {
   return wasmfx_suspend(arg);
 }
 
-__wasm_export("fiber_init")
+__wasm_export__("fiber_init")
 void fiber_init() {
   free_list = malloc(INITIAL_TABLE_CAPACITY * sizeof(size_t));
 }
 
-__wasm_export("fiber_finalize") void fiber_finalize() {
+__wasm_export__("fiber_finalize") void fiber_finalize() {
   free(free_list);
 }
