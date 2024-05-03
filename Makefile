@@ -3,7 +3,7 @@ ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable
 WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 WASM_INTERP=../spec/interpreter/wasm
 WASM_MERGE=../benchfx/binaryenfx/bin/wasm-merge --enable-multimemory --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations
-COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=16384
+COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=1024
 ifeq ($(MODE), debug)
 COMMON_FLAGS:=$(COMMON_FLAGS) -g
 endif

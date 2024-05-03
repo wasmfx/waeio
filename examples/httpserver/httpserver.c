@@ -37,7 +37,7 @@
 
 static const uint32_t buffer_size = 1 << 16;
 static const uint32_t max_headers = 100;
-static const uint32_t max_clients = 500;
+static const uint32_t max_clients = MAX_CONNECTIONS - 1;
 static uint32_t clients = 0;
 
 
@@ -75,7 +75,7 @@ static inline void fq_swap(struct fiber_queue **frontq, struct fiber_queue **rea
 
 static struct wasio_pollfd wfd;
 static struct wasio_event ev;
-static struct fiber_closure fibers[501];
+static struct fiber_closure fibers[MAX_CONNECTIONS];
 
 typedef enum { ASYNC = 0, YIELD = 1, RECV = 2, SEND = 3, QUIT = 4 } cmd_tag_t;
 
@@ -173,8 +173,8 @@ static int make_response(char *buffer, uint32_t buflen, const char *httpcode, co
   response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
                               months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-  response_length += snprintf(buffer + response_length, buflen - response_length,
-                              "Connection: close\r\n");
+  /* response_length += snprintf(buffer + response_length, buflen - response_length, */
+  /*                             "Connection: close\r\n"); */
   response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Content-Length: %d\r\n", content_length);
   response_length += snprintf(buffer + response_length, buflen - response_length,
@@ -381,20 +381,20 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
 int main(void) {
   fiber_init();
   // Setup fiber queues.
-  struct fiber_queue *frontq = fq_new(max_clients),
-                     *rearq = fq_new(max_clients);
+  struct fiber_queue *frontq = fq_new(MAX_CONNECTIONS),
+                     *rearq = fq_new(MAX_CONNECTIONS);
 
   // Initialise tracked fiber closures.
-  for (uint32_t i = 0; i < 501; i++) {
+  for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
     fibers[i] = (struct fiber_closure){ .fiber = NULL, .fd = -1 };
   }
 
   // Initialise the I/O subsystem.
-  assert(wasio_init(&wfd, max_clients) == WASIO_OK);
+  assert(wasio_init(&wfd, MAX_CONNECTIONS) == WASIO_OK);
 
   // Open the listener socket.
   wasio_fd_t servfd = -1;
-  const uint32_t backlog = 64;
+  const uint32_t backlog = 1000;
   assert(wasio_listen(&wfd, &servfd, 8080, backlog) == WASIO_OK);
 
   // Create a fiber for the listener.
@@ -423,7 +423,7 @@ int main(void) {
 
     // Poll I/O
     uint32_t nevents;
-    assert(wasio_poll(&wfd, &ev, max_clients, &nevents, 1000) == WASIO_OK);
+    assert(wasio_poll(&wfd, &ev, MAX_CONNECTIONS, &nevents, 500) == WASIO_OK);
     debug_println("main", servfd, "Poll OK");
     WASIO_EVENT_FOREACH(&wfd, &ev, nevents, fd, {
         debug_println("main", fd, "Foreach");
@@ -438,7 +438,7 @@ int main(void) {
     rearq->length = 0;
   }
 
-  for (uint32_t i = 0; i < 501; i++) {
+  for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
     if (fibers[i].fiber != NULL) {
       printf("Killing %u\n", i);
       printf("Resuming %u with kill signal\n", i);
