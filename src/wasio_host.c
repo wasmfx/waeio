@@ -106,13 +106,13 @@ wasio_result_t wasio_poll( struct wasio_pollfd *wfd
 }
 
 wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t *new_conn_vfd) {
-  wasio_result_t res = wasio_wrap(wfd, -1, new_conn_vfd);
-  if (res != WASIO_OK) return res;
-
   int fd = wfd->fds[vfd];
   int ans = host_accept((int32_t)fd, &host_errno);
-  printf("[wasio_accept] ans = %d, errno = %s (%d)\n", ans, host_strerror(host_errno), host_errno);
+  printf("[wasio_accept] conn_vfd = %d, physfd = %d, errno = %s (%d)\n", *new_conn_vfd, ans, host_strerror(host_errno), host_errno);
   if (ans < 0) return translate_error(host_errno);
+
+  wasio_result_t res = wasio_wrap(wfd, ans, new_conn_vfd);
+  if (res != WASIO_OK) return res;
 
   wfd->fds[(uint32_t)*new_conn_vfd] = ans;
   wfd->vfds[(uint32_t)*new_conn_vfd].fd = ans;
@@ -141,7 +141,7 @@ wasio_result_t wasio_close(struct wasio_pollfd *wfd, wasio_fd_t vfd) {
   wfd->vfds[vfd].revents = 0;
   wfd->fds[vfd] = -1;
   wfd->length--;
-  assert(freelist_reclaim(wfd->fl, vfd) == FREELIST_OK);
+  assert(freelist_reclaim(wfd->fl, (uint32_t)vfd) == FREELIST_OK);
   return WASIO_OK;
 }
 
