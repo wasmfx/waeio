@@ -65,24 +65,11 @@ static inline void fq_push(struct fiber_queue *fq, struct fiber_closure clo) {
   }
 }
 
-/* static inline bool fq_is_empty(const struct fiber_queue *fq) { */
-/*   return fq->length == 0; */
-/* } */
-
 static inline void fq_swap(struct fiber_queue **frontq, struct fiber_queue **rearq) {
   struct fiber_queue *q = *frontq;
   *frontq = *rearq;
   *rearq = q;
 }
-
-/* static inline struct fiber_closure fq_pop(struct fiber_queue *fq) { */
-/*   if (!fq_is_empty(fq)) { */
-/*     fq->q[fq->length++] = clo; */
-/*   } else { */
-/*     abort(); */
-/*   } */
-/* } */
-
 
 static struct wasio_pollfd wfd;
 static struct wasio_event ev;
@@ -169,22 +156,18 @@ static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sa
 static const char *months[] = {
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-static int prepare_response(char *buffer, size_t buff_size, const char *body,
-    int content_length) {
+static int response_ok(char *buffer, size_t buff_size, const char *body, int content_length) {
     size_t response_length = 0;
     time_t t = time(NULL);
-    // DO NOT use localtime
     struct tm *tm = gmtime(&t);
 
     response_length +=
         snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 200 OK");
     response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
     // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
-    // This is considerable faster than strftime
     response_length += snprintf(buffer + response_length, buff_size - response_length,
         "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
         months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-    // TODO, maybe allow closing?
     response_length += snprintf(buffer + response_length, buff_size - response_length,
                                 "Connection: close\r\n");
     response_length += snprintf(buffer + response_length, buff_size - response_length,
@@ -202,6 +185,68 @@ static int prepare_response(char *buffer, size_t buff_size, const char *body,
     }
 
     return response_length;
+}
+
+static int response_notfound(char *buffer, size_t buff_size, const char *body, int content_length) {
+  size_t response_length = 0;
+    time_t t = time(NULL);
+    struct tm *tm = gmtime(&t);
+
+    response_length +=
+        snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 404 Not Found");
+    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+    // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
+        months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+                                "Connection: close\r\n");
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Content-Length: %d\r\n", content_length);
+    response_length += snprintf(buffer + response_length, buff_size - response_length,
+        "Content-Type: text/plain\r\n");
+    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+    if (content_length > 0) {
+        response_length +=
+            snprintf(buffer + response_length, buff_size - response_length, "%s", body);
+    }
+
+    if (response_length < 0 || response_length >= buff_size) {
+        return -1;
+    }
+
+    return response_length;
+}
+
+static int response_err(char *buffer, size_t buff_size, const char *body, int content_length) {
+  size_t response_length = 0;
+  time_t t = time(NULL);
+  struct tm *tm = gmtime(&t);
+
+  response_length +=
+    snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 500 Internal Server Error");
+  response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+  // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
+  response_length += snprintf(buffer + response_length, buff_size - response_length,
+                              "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
+                              months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
+  response_length += snprintf(buffer + response_length, buff_size - response_length,
+                              "Connection: close\r\n");
+  response_length += snprintf(buffer + response_length, buff_size - response_length,
+                              "Content-Length: %d\r\n", content_length);
+  response_length += snprintf(buffer + response_length, buff_size - response_length,
+                              "Content-Type: text/plain\r\n");
+  response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+  if (content_length > 0) {
+    response_length +=
+      snprintf(buffer + response_length, buff_size - response_length, "%s", body);
+  }
+
+  if (response_length < 0 || response_length >= buff_size) {
+    return -1;
+  }
+
+  return response_length;
 }
 
 const char *response_body =
@@ -238,7 +283,7 @@ static void* handle_connection(wasio_fd_t clientfd) {
   /* size_t path_len; */
   /* int minor_version; */
   /* struct phr_header headers[max_headers]; */
-  /* size_t num_headers; */
+  /* size_t num_headers = max_headers; */
   size_t prevbuflen = 0, buflen = 0;
 
   int32_t ans = 0;
@@ -253,32 +298,35 @@ static void* handle_connection(wasio_fd_t clientfd) {
     prevbuflen = buflen;
     buflen += ans;
 
-    /* ans = phr_parse_request(reqbuf, buflen, &method, &method_len, &path, &path_len, */
-    /*                       &minor_version, headers, &num_headers, prevbuflen); */
+    /* ans = phr_parse_request(reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len, */
+    /*                         &minor_version, headers, &num_headers, prevbuflen); */
+    /* ans = phr_parse_headers(reqbuf, sizeof(reqbuf) - buflen, headers, &num_headers, prevbuflen); */
+    /* printf("ans = %d\n", ans); */
     ans = strncmp(reqbuf, "GET / HTTP/1.1", strlen("GET / HTTP/1.1")) == 0 ? 0 : strncmp(reqbuf, "GET /favicon.ico HTTP/1.1", strlen("GET /favicon.ico HTTP/1.1"));
-    if (ans == 0) break;
-    else if (ans == -1) {
+    if (ans == 0) {
+      ans = 1;
+      break;
+    } else if (ans == -1) {
       debug_println("handle_connection", clientfd, "Http parse failure");
       abort();
     }
     assert(ans == -2);
-    (void)prevbuflen;
-    /* if (buflen == buffer_size) abort(); */
+    (void)prevbuflen; // squash warning.
+    if (buflen == buffer_size) abort();
   }
 
-  if (ans >= 0) {
-    ans = prepare_response(reqbuf, buffer_size, response_body, strlen(response_body));
-    if (ans < 0) {
-      debug_println("handle_connection", clientfd, "failed to prepare response");
-      abort();
-    }
-    ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans);
-    if (ans < 0) {
-      debug_println("handle_connection", clientfd, "I/O send failure");
-      abort();
-    }
-  } else { // FAILED
-    debug_println("handle_connection", clientfd, "failure");
+  if (ans > 0) {
+    ans = response_ok(reqbuf, buffer_size, response_body, strlen(response_body));
+  } else {
+    if (ans == 0)
+      ans = response_notfound(reqbuf, buffer_size, NULL, 0);
+    else
+      ans = response_err(reqbuf, buffer_size, "I/O failure", strlen("I/O failure"));
+  }
+
+  ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans); // TODO(dhil): send may be partial
+  if (ans < 0) {
+    debug_println("handle_connection", clientfd, "I/O send failure");
     abort();
   }
 
