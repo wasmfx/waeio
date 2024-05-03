@@ -282,7 +282,6 @@ static void* handle_connection(wasio_fd_t clientfd) {
     abort();
   }
 
-  assert(wasio_close(&wfd, clientfd) == WASIO_OK);
   return NULL;
 }
 
@@ -317,6 +316,7 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
   switch (res) {
   case FIBER_OK:
     debug_println("handle_request", clo.fd, "FIBER_OK");
+    assert(wasio_close(wfd, clo.fd) == WASIO_OK);
     fiber_free(clo.fiber);
     clients--;
     return true;
