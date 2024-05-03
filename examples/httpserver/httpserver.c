@@ -27,11 +27,11 @@
     wasi_print(__FILE__ ":" STRINGIZE(__LINE__) ": " str "\n")
 
 
-/* #define debug_println(fn, fd, msg) do {               \ */
-/*     printf("[%s(%d)] %s\n", fn, fd, msg); \ */
-/*     fflush(stdout);\ */
-/*   } while(false); */
-#define debug_println(fn, fd, msg) {};
+#define debug_println(fn, fd, msg) do {               \
+    printf("[%s(%d)] %s\n", fn, fd, msg); \
+    fflush(stdout);\
+  } while(false);
+//#define debug_println(fn, fd, msg) {};
 
 #define FIBER_KILL_SIGNAL INT32_MIN
 
@@ -106,10 +106,10 @@ static inline int yield() {
 
 static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uint32_t bufsize) {
   cmd = cmd_make(RECV, fd);
-  uint32_t nbytes;
+  uint32_t nbytes = 0;
   wasio_result_t ans;
   /* printf("[w_recv(%d)] receiving\n", fd); */
-  while ( (ans = wasio_recv(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
+  while ( (ans = wasio_recv(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN) {
     debug_println("w_recv", fd, "yielding");
     int code = (int)(intptr_t)fiber_yield(&cmd);
     if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
@@ -120,9 +120,9 @@ static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
 
 static int32_t w_send(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uint32_t bufsize) {
   cmd = cmd_make(SEND, fd);
-  uint32_t nbytes;
+  uint32_t nbytes = 0;
   wasio_result_t ans;
-  while ( (ans = wasio_send(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN ) {
+  while ( (ans = wasio_send(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN) {
     debug_println("w_send", fd, "yielding");
     int code = (int)(intptr_t)fiber_yield(&cmd);
     if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
@@ -246,6 +246,7 @@ static void* handle_connection(wasio_fd_t clientfd) {
     /* printf("[handle_connection(%d)] bytes recv'd: %d\n", clientfd, ans); */
     /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
     if (ans < 0) {
+      printf("I/O failure\n");
       debug_println("handle_connection", clientfd, "I/O recv failure");
       return NULL; // bail out.
     }
@@ -414,7 +415,8 @@ int main(void) {
     for (uint32_t i = 0; i < frontq->length; i++) {
       debug_println("main", servfd, "Extracting fiber closure");
       struct fiber_closure clo = frontq->q[i];
-      debug_println("main", servfd, "Resuming");
+      //debug_println("main", servfd, "Resuming");
+      printf("[main(%d)] Resuming fiber %p\n", servfd, (void*)clo.fiber);
       void *ans = fiber_resume(clo.fiber, (void*)clo.fd, &status);
       keep_going = handle_request(&wfd, rearq, clo, ans, status);
       if (!keep_going) break;
@@ -438,17 +440,17 @@ int main(void) {
     rearq->length = 0;
   }
 
-  for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
-    if (fibers[i].fiber != NULL) {
-      printf("Killing %u\n", i);
-      printf("Resuming %u with kill signal\n", i);
-      (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status); // TODO(dhil): Double check that the fiber exited.
-      assert(status == FIBER_OK);
-      free(fibers[i].fiber);
-      fibers[i].fiber = NULL;
-      clients--;
-    }
-  }
+  /* for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) { */
+  /*   if (fibers[i].fiber != NULL) { */
+  /*     printf("Killing %u\n", i); */
+  /*     printf("Resuming %u with kill signal\n", i); */
+  /*     (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status); // TODO(dhil): Double check that the fiber exited. */
+  /*     assert(status == FIBER_OK); */
+  /*     free(fibers[i].fiber); */
+  /*     fibers[i].fiber = NULL; */
+  /*     clients--; */
+  /*   } */
+  /* } */
 
   wasio_finalize(&wfd);
   fiber_finalize();

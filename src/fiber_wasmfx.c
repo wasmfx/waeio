@@ -116,6 +116,7 @@ void* fiber_yield(void *arg) {
 __wasm_export__("fiber_init")
 void fiber_init() {
   free_list = malloc(INITIAL_TABLE_CAPACITY * sizeof(size_t));
+  wasmfx_acquire_table_index(); // Restrict zero from being used.
 }
 
 __wasm_export__("fiber_finalize") void fiber_finalize() {
