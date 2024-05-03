@@ -379,6 +379,7 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
 }
 
 int main(void) {
+  fiber_init();
   // Setup fiber queues.
   struct fiber_queue *frontq = fq_new(max_clients),
                      *rearq = fq_new(max_clients);
@@ -450,6 +451,7 @@ int main(void) {
   }
 
   wasio_finalize(&wfd);
+  fiber_finalize();
 
   return 0;
 }
