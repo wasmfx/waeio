@@ -34,7 +34,7 @@
 #define debug_println(fn, fd, msg) {};
 
 static const uint32_t buffer_size = 1 << 16;
-/* static const uint32_t max_headers = 100; */
+static const uint32_t max_headers = 100;
 static const uint32_t max_clients = 500;
 static uint32_t clients = 0;
 
@@ -277,18 +277,18 @@ const char *response_body =
 
 static void* handle_connection(wasio_fd_t clientfd) {
   char reqbuf[buffer_size];
-  /* const char *method; */
-  /* size_t method_len; */
-  /* const char *path; */
-  /* size_t path_len; */
-  /* int minor_version; */
-  /* struct phr_header headers[max_headers]; */
-  /* size_t num_headers = max_headers; */
+  const char *method;
+  size_t method_len;
+  const char *path;
+  size_t path_len;
+  int minor_version;
+  struct phr_header headers[max_headers];
+  size_t num_headers = sizeof(headers) / sizeof(headers[0]);
   size_t prevbuflen = 0, buflen = 0;
 
   int32_t ans = 0;
   while (true) {
-    ans = w_recv(&wfd, clientfd, (uint8_t*)reqbuf+buflen, sizeof(reqbuf) - buflen);
+    ans = w_recv(&wfd, clientfd, (uint8_t*)reqbuf+buflen, sizeof(reqbuf) - buflen); // TODO(dhil): recv may be partial
     /* printf("[handle_connection(%d)] bytes recv'd: %d\n", clientfd, ans); */
     /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
     if (ans < 0) {
@@ -298,30 +298,42 @@ static void* handle_connection(wasio_fd_t clientfd) {
     prevbuflen = buflen;
     buflen += ans;
 
-    /* ans = phr_parse_request(reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len, */
-    /*                         &minor_version, headers, &num_headers, prevbuflen); */
-    /* ans = phr_parse_headers(reqbuf, sizeof(reqbuf) - buflen, headers, &num_headers, prevbuflen); */
-    /* printf("ans = %d\n", ans); */
-    ans = strncmp(reqbuf, "GET / HTTP/1.1", strlen("GET / HTTP/1.1")) == 0 ? 0 : strncmp(reqbuf, "GET /favicon.ico HTTP/1.1", strlen("GET /favicon.ico HTTP/1.1"));
-    if (ans == 0) {
-      ans = 1;
+    ans = phr_parse_request(reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len,
+                            &minor_version, headers, &num_headers, prevbuflen);
+    if (ans > 0) {
+      debug_println("handle_connection", clientfd, "Http parse OK");
+      if (path_len == 1 && strncmp(path, "/", 1) == 0) {
+        ans = 1; // OK root
+      } else if (path_len == strlen("/quit") && strncmp(path, "/quit", strlen("/quit")) == 0) {
+        ans = 2; // OK quit
+      } else {
+        ans = 0; // Not found
+      }
       break;
     } else if (ans == -1) {
       debug_println("handle_connection", clientfd, "Http parse failure");
-      abort();
+      ans = -1; // Internal error.
+      break;
+    } else {
+      assert(ans == -2); // Partial parse.
+      // Check for overflow, otherwise continue.
+      if (buflen == buffer_size) {
+        ans = -1; // Internal error.
+        break;
+      }
     }
-    assert(ans == -2);
-    (void)prevbuflen; // squash warning.
-    if (buflen == buffer_size) abort();
   }
 
-  if (ans > 0) {
-    ans = response_ok(reqbuf, buffer_size, response_body, strlen(response_body));
-  } else {
-    if (ans == 0)
-      ans = response_notfound(reqbuf, buffer_size, NULL, 0);
+  if (ans >= 0) {
+    assert(ans < 3);
+    if (ans == 1)
+      ans = response_ok(reqbuf, buffer_size, response_body, strlen(response_body));
+    else if (ans == 2)
+      ans = response_ok(reqbuf, buffer_size, "OK bye...\n", strlen("OK bye...\n"));
     else
-      ans = response_err(reqbuf, buffer_size, "I/O failure", strlen("I/O failure"));
+      ans = response_notfound(reqbuf, buffer_size, NULL, 0);
+  } else {
+    ans = response_err(reqbuf, buffer_size, "I/O failure", strlen("I/O failure"));
   }
 
   ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans); // TODO(dhil): send may be partial
