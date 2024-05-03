@@ -29,7 +29,11 @@ int main(int argc, const char **argv) {
   }
 
   // Set up our context
-  wasm_engine_t *engine = wasm_engine_new();
+  wasm_config_t *config = wasm_config_new();
+  wasmtime_config_wasm_function_references_set(config, true);
+  wasmtime_config_wasm_exceptions_set(config, true);
+  wasmtime_config_wasm_typed_continuations_set(config, true);
+  wasm_engine_t *engine = wasm_engine_new_with_config(config);
   assert(engine != NULL);
   wasmtime_store_t *store = wasmtime_store_new(engine, NULL, NULL);
   assert(store != NULL);
@@ -110,6 +114,7 @@ int main(int argc, const char **argv) {
   wasmtime_module_delete(module);
   wasmtime_store_delete(store);
   wasm_engine_delete(engine);
+  wasm_config_delete(config);
   return 0;
 }
 
