@@ -173,3 +173,11 @@ void* fiber_resume(fiber_t fiber, void *arg, fiber_result_t *result) {
     return fiber_result;
   }
 }
+
+// Noop in this implementation.
+__wasm_export__("fiber_init")
+void fiber_init() {}
+
+// Noop in this implementation.
+__wasm_export__("fiber_finalize")
+void fiber_finalize() {}
