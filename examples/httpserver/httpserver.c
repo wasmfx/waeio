@@ -152,101 +152,49 @@ static wasio_fd_t w_accept(struct wasio_pollfd *wfd, wasio_fd_t fd) {
   return -1;
 }
 
-static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-static const char *months[] = {
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+static int make_response(char *buffer, uint32_t buflen, const char *httpcode, const char *body, uint32_t content_length) {
+  static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+  static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-static int response_ok(char *buffer, size_t buff_size, const char *body, int content_length) {
-    size_t response_length = 0;
-    time_t t = time(NULL);
-    struct tm *tm = gmtime(&t);
-
-    response_length +=
-        snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 200 OK");
-    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
-    // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
-        months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-                                "Connection: close\r\n");
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Content-Length: %d\r\n", content_length);
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Content-Type: text/plain\r\n");
-    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
-    if (content_length > 0) {
-        response_length +=
-            snprintf(buffer + response_length, buff_size - response_length, "%s", body);
-    }
-
-    if (response_length < 0 || response_length >= buff_size) {
-        return -1;
-    }
-
-    return response_length;
-}
-
-static int response_notfound(char *buffer, size_t buff_size, const char *body, int content_length) {
-  size_t response_length = 0;
-    time_t t = time(NULL);
-    struct tm *tm = gmtime(&t);
-
-    response_length +=
-        snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 404 Not Found");
-    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
-    // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
-        months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-                                "Connection: close\r\n");
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Content-Length: %d\r\n", content_length);
-    response_length += snprintf(buffer + response_length, buff_size - response_length,
-        "Content-Type: text/plain\r\n");
-    response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
-    if (content_length > 0) {
-        response_length +=
-            snprintf(buffer + response_length, buff_size - response_length, "%s", body);
-    }
-
-    if (response_length < 0 || response_length >= buff_size) {
-        return -1;
-    }
-
-    return response_length;
-}
-
-static int response_err(char *buffer, size_t buff_size, const char *body, int content_length) {
   size_t response_length = 0;
   time_t t = time(NULL);
   struct tm *tm = gmtime(&t);
 
   response_length +=
-    snprintf(buffer + response_length, buff_size - response_length, "HTTP/1.1 500 Internal Server Error");
-  response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+    snprintf(buffer + response_length, buflen - response_length, "HTTP/1.1 %s", httpcode);
+  response_length += snprintf(buffer + response_length, buflen - response_length, "\r\n");
   // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
-  response_length += snprintf(buffer + response_length, buff_size - response_length,
+  response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
                               months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-  response_length += snprintf(buffer + response_length, buff_size - response_length,
+  response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Connection: close\r\n");
-  response_length += snprintf(buffer + response_length, buff_size - response_length,
+  response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Content-Length: %d\r\n", content_length);
-  response_length += snprintf(buffer + response_length, buff_size - response_length,
+  response_length += snprintf(buffer + response_length, buflen - response_length,
                               "Content-Type: text/plain\r\n");
-  response_length += snprintf(buffer + response_length, buff_size - response_length, "\r\n");
+  response_length += snprintf(buffer + response_length, buflen - response_length, "\r\n");
   if (content_length > 0) {
-    response_length +=
-      snprintf(buffer + response_length, buff_size - response_length, "%s", body);
+    response_length += snprintf(buffer + response_length, buflen - response_length, "%s", body);
   }
 
-  if (response_length < 0 || response_length >= buff_size) {
+  if (response_length < 0 || response_length >= buflen) {
     return -1;
   }
 
   return response_length;
+}
+
+static inline int response_ok(char *buffer, uint32_t buflen, const char *body, int content_length) {
+  return make_response(buffer, buflen, "200 OK", body, content_length);
+}
+
+static inline int response_notfound(char *buffer, uint32_t buflen, const char *body, int content_length) {
+  return make_response(buffer, buflen, "404 Not found", body, content_length);
+}
+
+static inline int response_err(char *buffer, uint32_t buflen, const char *body, int content_length) {
+  return make_response(buffer, buflen, "500 Internal server error", body, content_length);
 }
 
 const char *response_body =
@@ -327,13 +275,13 @@ static void* handle_connection(wasio_fd_t clientfd) {
   if (ans >= 0) {
     assert(ans < 3);
     if (ans == 1)
-      ans = response_ok(reqbuf, buffer_size, response_body, strlen(response_body));
+      ans = response_ok(reqbuf, buffer_size, response_body, (uint32_t)strlen(response_body));
     else if (ans == 2)
-      ans = response_ok(reqbuf, buffer_size, "OK bye...\n", strlen("OK bye...\n"));
+      ans = response_ok(reqbuf, buffer_size, "OK bye...\n", (uint32_t)strlen("OK bye...\n"));
     else
       ans = response_notfound(reqbuf, buffer_size, NULL, 0);
   } else {
-    ans = response_err(reqbuf, buffer_size, "I/O failure", strlen("I/O failure"));
+    ans = response_err(reqbuf, buffer_size, "I/O failure", (uint32_t)strlen("I/O failure"));
   }
 
   ans = w_send(&wfd, clientfd, (uint8_t*)reqbuf, ans); // TODO(dhil): send may be partial
