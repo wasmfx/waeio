@@ -21,15 +21,7 @@ struct wasio_event {
   }
 #define WASIO_EVENT_INITIALISER(_max_events) NULL
 #elif WASIO_BACKEND == 2
-struct pollfd {
-  int32_t fd;
-  short int events;
-  short int revents;
-} __attribute__((packed));
-static_assert(sizeof(struct pollfd) == 8, "size of struct pollfd");
-static_assert(offsetof(struct pollfd, fd) == 0, "offset of fd");
-static_assert(offsetof(struct pollfd, events) == 4, "offset of events");
-static_assert(offsetof(struct pollfd, revents) == 6, "offset of revents");
+#include <host/poll.h>
 
 struct wasio_event {
   uint64_t _phantom;
@@ -38,7 +30,7 @@ struct wasio_event {
 #define WASIO_EVENT_FOREACH(wfd, /* ignored */ evs, num_events, vfd, BODY) \
   { (void)evs; \
     for (uint32_t i = 0, j = 0; i < (wfd)->length && j < num_events; i++) { \
-      if ((wfd)->vfds[i].fd >= 0 && (wfd)->vfds[i].revents != 0) { \
+      if ((wfd)->vfds[i].fd != -1 && (wfd)->vfds[i].revents != 0) { \
         (wfd)->vfds[i].events = 0; (wfd)->vfds[i].revents = 0; wasio_fd_t vfd = (wasio_fd_t)i; j++; BODY \
       } \
     } \

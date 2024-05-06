@@ -1,11 +1,13 @@
 #include <assert.h>
 #include <host/errno.h>
+#include <host/poll.h>
+#include <host/socket.h>
+#include <http_utils.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include <picohttpparser.h>
 
@@ -31,7 +33,7 @@
     printf("[%s(%d)] %s\n", fn, fd, msg); \
     fflush(stdout);\
   } while(false);
-//#define debug_println(fn, fd, msg) {};
+/* #define debug_println(fn, fd, msg) {}; */
 
 #define FIBER_KILL_SIGNAL INT32_MIN
 
@@ -51,6 +53,8 @@ struct fiber_queue {
   uint32_t length;
   struct fiber_closure q[];
 };
+
+static struct fiber_queue *frontq, *rearq;
 
 static inline struct fiber_queue* fq_new(uint32_t capacity) {
   struct fiber_queue *fq = (struct fiber_queue*)malloc(sizeof(struct fiber_queue) + sizeof(struct fiber_closure[capacity]));
@@ -107,7 +111,7 @@ static inline int yield() {
 static int32_t w_recv(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uint32_t bufsize) {
   cmd = cmd_make(RECV, fd);
   uint32_t nbytes = 0;
-  wasio_result_t ans;
+  wasio_result_t ans = WASIO_OK;
   /* printf("[w_recv(%d)] receiving\n", fd); */
   while ( (ans = wasio_recv(wfd, fd, buf, bufsize, &nbytes)) == WASIO_EAGAIN) {
     debug_println("w_recv", fd, "yielding");
@@ -131,103 +135,32 @@ static int32_t w_send(struct wasio_pollfd *wfd, wasio_fd_t fd, uint8_t *buf, uin
   return ans == WASIO_OK ? nbytes : -1;
 }
 
-static wasio_fd_t w_accept(struct wasio_pollfd *wfd, wasio_fd_t fd) {
+static void* handle_connection(wasio_fd_t);
+static wasio_result_t w_accept(struct wasio_pollfd *wfd, wasio_fd_t fd, uint32_t max_accept, uint32_t *naccepted) {
 
-  while (true) {
+    /* case ASYNC: */
+    /*   debug_println("handle_request", clo.fd, " -> ASYNC"); */
+    /*   debug_println("handle_request", cmd.clo.fd, " <- ASYNC"); */
+    /*   fibers[cmd.clo.fd] = cmd.clo; */
+    /*   fq_push(rearq, cmd.clo); // fall-through */
+  while (*naccepted < max_accept) {
     wasio_fd_t conn = -1;
     wasio_result_t ans = wasio_accept(wfd, fd, &conn);
-    /* switch (ans) { */
-    /* case WASIO_OK: */
-    /*   debug_println("w_accept", fd, "ans is OK"); */
-    /*   break; */
-    /* case WASIO_EAGAIN: */
-    /*   debug_println("w_accept", fd, "ans is EAGAIN"); */
-    /*   break; */
-    /* default: */
-    /*   debug_println("w_accept", fd, "ans is UNKNOWN"); */
-    /* } */
-    if (ans != WASIO_EAGAIN) return ans == WASIO_OK ? conn : -1;
-    cmd = cmd_make(RECV, fd);
-    debug_println("w_accept", fd, "yielding");
-    int code = (int)(intptr_t)fiber_yield(&cmd);
-    if (code == FIBER_KILL_SIGNAL) return FIBER_KILL_SIGNAL;
-    debug_println("w_accept", fd, "continued");
+
+    if (ans == WASIO_OK) {
+      printf("[w_accept(%d)] new conn: %d\n", fd, conn);
+      assert(wasio_notify_recv(wfd, fd) == WASIO_OK);
+      fiber_t fiber = fiber_alloc((fiber_entry_point_t)(void*)handle_connection);
+      fq_push(rearq, (struct fiber_closure) { .fiber = fiber, .fd = conn });
+      *naccepted += 1;
+      continue;
+    } else {
+      return ans; // TODO(dhil): propagate I/O error?
+    }
   }
 
-  abort(); // unreachable.
-  return -1;
+  return WASIO_OK;
 }
-
-static int make_response(char *buffer, uint32_t buflen, const char *httpcode, const char *body, uint32_t content_length) {
-  static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-  static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
-  size_t response_length = 0;
-  time_t t = time(NULL);
-  struct tm *tm = gmtime(&t);
-
-  response_length +=
-    snprintf(buffer + response_length, buflen - response_length, "HTTP/1.1 %s", httpcode);
-  response_length += snprintf(buffer + response_length, buflen - response_length, "\r\n");
-  // Date: <day-name>, <day> <month> <year> <hour>:<minute>:<second> GMT
-  response_length += snprintf(buffer + response_length, buflen - response_length,
-                              "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n", daysOfWeek[tm->tm_wday], tm->tm_mday,
-                              months[tm->tm_mon], tm->tm_year + 1900, tm->tm_hour, tm->tm_min, tm->tm_sec);
-  /* response_length += snprintf(buffer + response_length, buflen - response_length, */
-  /*                             "Connection: close\r\n"); */
-  response_length += snprintf(buffer + response_length, buflen - response_length,
-                              "Content-Length: %d\r\n", content_length);
-  response_length += snprintf(buffer + response_length, buflen - response_length,
-                              "Content-Type: text/plain\r\n");
-  response_length += snprintf(buffer + response_length, buflen - response_length, "\r\n");
-  if (content_length > 0) {
-    response_length += snprintf(buffer + response_length, buflen - response_length, "%s", body);
-  }
-
-  if (response_length < 0 || response_length >= buflen) {
-    return -1;
-  }
-
-  return response_length;
-}
-
-static inline int response_ok(char *buffer, uint32_t buflen, const char *body, int content_length) {
-  return make_response(buffer, buflen, "200 OK", body, content_length);
-}
-
-static inline int response_notfound(char *buffer, uint32_t buflen, const char *body, int content_length) {
-  return make_response(buffer, buflen, "404 Not found", body, content_length);
-}
-
-static inline int response_err(char *buffer, uint32_t buflen, const char *body, int content_length) {
-  return make_response(buffer, buflen, "500 Internal server error", body, content_length);
-}
-
-const char *response_body =
-    "CHAPTER I. Down the Rabbit-Hole  Alice was beginning to get very tired of sitting by her "
-    "sister on the bank, and of having nothing to do: once or twice she had peeped into the book "
-    "her sister was reading, but it had no pictures or conversations in it, <and what is the use "
-    "of a book,> thought Alice <without pictures or conversations?> So she was considering in her "
-    "own mind (as well as she could, for the hot day made her feel very sleepy and stupid), "
-    "whether the pleasure of making a daisy-chain would be worth the trouble of getting up and "
-    "picking the daisies, when suddenly a White Rabbit with pink eyes ran close by her. There was "
-    "nothing so very remarkable in that; nor did Alice think it so very much out of the way to "
-    "hear the Rabbit say to itself, <Oh dear! Oh dear! I shall be late!> (when she thought it over "
-    "afterwards, it occurred to her that she ought to have wondered at this, but at the time it "
-    "all seemed quite natural); but when the Rabbit actually took a watch out of its "
-    "waistcoat-pocket, and looked at it, and then hurried on, Alice started to her feet, for it "
-    "flashed across her mind that she had never before seen a rabbit with either a "
-    "waistcoat-pocket, or a watch to take out of it, and burning with curiosity, she ran across "
-    "the field after it, and fortunately was just in time to see it pop down a large rabbit-hole "
-    "under the hedge. In another moment down went Alice after it, never once considering how in "
-    "the world she was to get out again. The rabbit-hole went straight on like a tunnel for some "
-    "way, and then dipped suddenly down, so suddenly that Alice had not a moment to think about "
-    "stopping herself before she found herself falling down a very deep well. Either the well was "
-    "very deep, or she fell very slowly, for she had plenty of time as she went down to look about "
-    "her and to wonder what was going to happen next. First, she tried to look down and make out "
-    "what she was coming to, but it was too dark to see anything; then she looked at the sides of "
-    "the well, and noticed that they were filled with cupboards......\n";
-
 
 static void* handle_connection(wasio_fd_t clientfd) {
   char reqbuf[buffer_size];
@@ -237,95 +170,91 @@ static void* handle_connection(wasio_fd_t clientfd) {
   size_t path_len;
   int minor_version;
   struct phr_header headers[max_headers];
-  size_t num_headers = sizeof(headers) / sizeof(headers[0]);
-  size_t prevbuflen = 0, buflen = 0;
 
   int32_t ans = 0;
   while (true) {
-    ans = w_recv(&wfd, clientfd, (uint8_t*)reqbuf+buflen, sizeof(reqbuf) - buflen); // TODO(dhil): recv may be partial
-    /* printf("[handle_connection(%d)] bytes recv'd: %d\n", clientfd, ans); */
-    /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
-    if (ans < 0) {
-      printf("I/O failure\n");
-      debug_println("handle_connection", clientfd, "I/O recv failure");
-      return NULL; // bail out.
-    }
-    prevbuflen = buflen;
-    buflen += ans;
-
-    ans = phr_parse_request(reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len,
-                            &minor_version, headers, &num_headers, prevbuflen);
-    if (ans > 0) {
-      debug_println("handle_connection", clientfd, "Http parse OK");
-      if (path_len == 1 && strncmp(path, "/", 1) == 0) {
-        ans = 1; // OK root
-      } else if (path_len == strlen("/quit") && strncmp(path, "/quit", strlen("/quit")) == 0) {
-        ans = 2; // OK quit
-      } else {
-        ans = 0; // Not found
+    size_t prevbuflen = 0, buflen = 0;
+    size_t num_headers = sizeof(headers) / sizeof(headers[0]);
+    while (true) {
+      ans = w_recv(&wfd, clientfd, (uint8_t*)reqbuf+buflen, sizeof(reqbuf) - buflen); // TODO(dhil): recv may be partial
+      //printf("[handle_connection(%d)] bytes recv'd: %d\n", clientfd, ans);
+      /* printf("[handle_connection(%d)] request:\n%s\n", clientfd, reqbuf); */
+      if (ans == 0) return NULL;
+      if (ans < 0) {
+        printf("I/O failure\n");
+        debug_println("handle_connection", clientfd, "I/O recv failure");
+        return NULL; // bail out.
       }
-      break;
-    } else if (ans == -1) {
-      debug_println("handle_connection", clientfd, "Http parse failure");
-      ans = -1; // Internal error.
-      break;
-    } else {
-      assert(ans == -2); // Partial parse.
-      // Check for overflow, otherwise continue.
-      if (buflen == buffer_size) {
+      prevbuflen = buflen;
+      buflen += ans;
+
+      ans = phr_parse_request(reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len,
+                              &minor_version, headers, &num_headers, prevbuflen);
+      if (ans > 0) {
+        debug_println("handle_connection", clientfd, "Http parse OK");
+        if (path_len == 1 && strncmp(path, "/", 1) == 0) {
+          ans = 1; // OK root
+        } else if (path_len == strlen("/quit") && strncmp(path, "/quit", strlen("/quit")) == 0) {
+          ans = 2; // OK quit
+        } else {
+          ans = 0; // Not found
+        }
+        break;
+      } else if (ans == -1) {
+        debug_println("handle_connection", clientfd, "Http parse failure");
         ans = -1; // Internal error.
         break;
+      } else {
+        assert(ans == -2); // Partial parse.
+        // Check for overflow, otherwise continue.
+        if (buflen == buffer_size) {
+          ans = -1; // Internal error.
+          break;
+        }
       }
     }
-  }
 
-  int nbytes = 0;
-  if (ans >= 0) {
+    int nbytes = 0;
+    if (ans >= 0) {
     assert(ans < 3);
     if (ans == 1)
-      nbytes = response_ok(reqbuf, buffer_size, response_body, (uint32_t)strlen(response_body));
+      nbytes = response_ok((uint8_t*)reqbuf, buffer_size, (uint8_t*)response_body, (uint32_t)strlen(response_body));
     else if (ans == 2)
-      nbytes = response_ok(reqbuf, buffer_size, "OK bye...\n", (uint32_t)strlen("OK bye...\n"));
+      nbytes = response_ok((uint8_t*)reqbuf, buffer_size, (uint8_t*)"OK bye...\n", (uint32_t)strlen("OK bye...\n"));
     else
-      nbytes = response_notfound(reqbuf, buffer_size, NULL, 0);
-  } else {
-    nbytes = response_err(reqbuf, buffer_size, "I/O failure", (uint32_t)strlen("I/O failure"));
-  }
+      nbytes = response_notfound((uint8_t*)reqbuf, buffer_size, NULL, 0);
+    } else {
+      nbytes = response_err((uint8_t*)reqbuf, buffer_size, (uint8_t*)"I/O failure", (uint32_t)strlen("I/O failure"));
+    }
 
-  nbytes = w_send(&wfd, clientfd, (uint8_t*)reqbuf, nbytes); // TODO(dhil): send may be partial
-  if (nbytes < 0) {
-    debug_println("handle_connection", clientfd, "I/O send failure");
-  }
-  if (ans == 2) { // quitting.
-    cmd = cmd_make(QUIT, -1);
-    return fiber_yield(&cmd);
+    nbytes = w_send(&wfd, clientfd, (uint8_t*)reqbuf, nbytes); // TODO(dhil): send may be partial
+    if (nbytes < 0) {
+      debug_println("handle_connection", clientfd, "I/O send failure");
+    }
+    if (ans == 2) { // quitting.
+      cmd = cmd_make(QUIT, -1);
+      return fiber_yield(&cmd);
+    }
   }
 
   return NULL;
 }
 
 void* listener(wasio_fd_t sockfd) {
+  wasio_fd_t mysock = sockfd;
   while (true) {
     // Keep yielding if we are out of space.
     while (clients == max_clients) {
       int ans = yield();
       if (ans == FIBER_KILL_SIGNAL) return (void*)(intptr_t)FIBER_KILL_SIGNAL;
     }
-
-    wasio_fd_t conn = w_accept(&wfd, sockfd);
-    /* printf("[listener(%d)] accepted %d\n", sockfd, conn); */
-    if (conn < 0) {
-      debug_println("listener", sockfd, "I/O failure");
-      break;
-    }
-    clients++;
-
-    cmd.clo.fiber = fiber_alloc((fiber_entry_point_t)(void*)handle_connection);
-    cmd.clo.fd = conn;
-    cmd.tag = ASYNC;
-    debug_println("listener", sockfd, "yielding");
+    printf("[listener(%d)] max_accept = %u, clients = %u\n", mysock, max_clients - clients, clients);
+    (void)w_accept(&wfd, mysock, max_clients - clients, &clients);
+    printf("[listener(%d)] accepted: %u\n", mysock, clients);
+    cmd = cmd_make(RECV, mysock);
+    debug_println("listener", mysock, "yielding");
     int ans = (int)(intptr_t)fiber_yield(&cmd);
-    debug_println("listener", sockfd, "continued");
+    debug_println("listener", mysock, "continued");
     if (ans == FIBER_KILL_SIGNAL) return (void*)(intptr_t)FIBER_KILL_SIGNAL;
   }
   return (void*)(intptr_t)0;
@@ -338,7 +267,7 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
     debug_println("handle_request", clo.fd, "FIBER_OK");
     assert(wasio_close(wfd, clo.fd) == WASIO_OK);
     fiber_free(clo.fiber);
-    fibers[clo.fd].fiber = NULL;
+    fibers[clo.fd].fd = -1;
     clients--;
     return true;
   }
@@ -349,11 +278,6 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
   case FIBER_YIELD: {
     debug_println("handle_request", clo.fd, "FIBER_YIELD");
     switch (cmd.tag) {
-    case ASYNC:
-      debug_println("handle_request", clo.fd, " -> ASYNC");
-      debug_println("handle_request", cmd.clo.fd, " <- ASYNC");
-      fibers[cmd.clo.fd] = cmd.clo;
-      fq_push(rearq, cmd.clo); // fall-through
     case YIELD:
       debug_println("handle_request", clo.fd, " -> YIELD");
       fq_push(rearq, clo);
@@ -382,8 +306,8 @@ static bool handle_request(struct wasio_pollfd *wfd, struct fiber_queue *rearq, 
 int main(void) {
   fiber_init();
   // Setup fiber queues.
-  struct fiber_queue *frontq = fq_new(MAX_CONNECTIONS),
-                     *rearq = fq_new(MAX_CONNECTIONS);
+  frontq = fq_new(MAX_CONNECTIONS);
+  rearq = fq_new(MAX_CONNECTIONS);
 
   // Initialise tracked fiber closures.
   for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
@@ -396,7 +320,7 @@ int main(void) {
   // Open the listener socket.
   wasio_fd_t servfd = -1;
   const uint32_t backlog = 1000;
-  assert(wasio_listen(&wfd, &servfd, 8080, backlog) == WASIO_OK);
+  assert(wasio_listen(&wfd, &servfd, 8080, backlog) == WASIO_OK && servfd == 0);
 
   // Create a fiber for the listener.
   fiber_t lfiber = fiber_alloc((fiber_entry_point_t)(void*)listener);
@@ -410,48 +334,61 @@ int main(void) {
   wasi_print("Ready...\n");
   while (keep_going) {
     debug_println("main", servfd, "Ready to run fibers");
-    /* printf("[main(%d)] clients = %d\n", servfd, clients); */
+    printf("[main(%d)] clients = %d\n", servfd, clients);
     // Run ready fibers.
     for (uint32_t i = 0; i < frontq->length; i++) {
-      debug_println("main", servfd, "Extracting fiber closure");
+      /* debug_println("main", servfd, "Extracting fiber closure"); */
       struct fiber_closure clo = frontq->q[i];
       //debug_println("main", servfd, "Resuming");
-      printf("[main(%d)] Resuming fiber %p\n", servfd, (void*)clo.fiber);
+      /* printf("[main(%d)] Resuming fiber %p\n", servfd, (void*)clo.fiber); */
       void *ans = fiber_resume(clo.fiber, (void*)clo.fd, &status);
       keep_going = handle_request(&wfd, rearq, clo, ans, status);
       if (!keep_going) break;
     }
     if (!keep_going) break;
-
     // Poll I/O
     uint32_t nevents;
-    assert(wasio_poll(&wfd, &ev, MAX_CONNECTIONS, &nevents, 500) == WASIO_OK);
+    assert(wasio_poll(&wfd, &ev, MAX_CONNECTIONS, &nevents, 100) == WASIO_OK);
     debug_println("main", servfd, "Poll OK");
-    WASIO_EVENT_FOREACH(&wfd, &ev, nevents, fd, {
-        debug_println("main", fd, "Foreach");
-        // Run the fiber.
-        void *ans = fiber_resume(fibers[fd].fiber, (void*)0, &status);
-        keep_going = handle_request(&wfd, rearq, fibers[fd], ans, status);
-        if (!keep_going) break;
-      });
+    if (nevents > 0) {
+      for (uint32_t i = 0; i < wfd.length; i++) {
+        if (wfd.vfds[i].fd != -1 && wfd.vfds[i].revents != 0) {
+          wfd.vfds[i].revents = 0;
+          wasio_fd_t fd = i;
+          void *ans = fiber_resume(fibers[fd].fiber, (void*)0, &status);
+          keep_going = handle_request(&wfd, rearq, fibers[fd], ans, status);
+          if (!keep_going) break;
+        }
+      }
+    }
+    /* WASIO_EVENT_FOREACH(&wfd, &ev, nevents, fd, { */
+    /*     /\* debug_println("main", fd, "Foreach"); *\/ */
+    /*     // Run the fiber. */
+    /*     void *ans = fiber_resume(fibers[fd].fiber, (void*)0, &status); */
+    /*     keep_going = handle_request(&wfd, rearq, fibers[fd], ans, status); */
+    /*     if (!keep_going) break; */
+    /*   }); */
 
     // Swap queues and reset new rear.
     fq_swap(&frontq, &rearq);
     rearq->length = 0;
   }
 
-  /* for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) { */
-  /*   if (fibers[i].fiber != NULL) { */
-  /*     printf("Killing %u\n", i); */
-  /*     printf("Resuming %u with kill signal\n", i); */
-  /*     (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status); // TODO(dhil): Double check that the fiber exited. */
-  /*     assert(status == FIBER_OK); */
-  /*     free(fibers[i].fiber); */
-  /*     fibers[i].fiber = NULL; */
-  /*     clients--; */
-  /*   } */
-  /* } */
+  for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
+    if (fibers[i].fd != -1) {
+      printf("Killing %u\n", i);
+      printf("Resuming %u with kill signal\n", i);
+      (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status); // TODO(dhil): Double check that the fiber exited.
+      assert(status == FIBER_OK);
+      fibers[i].fd = -1;
+      free(fibers[i].fiber);
+      if (i != 0) clients--;
+    }
+  }
 
+  assert(clients == 0);
+  free(frontq);
+  free(rearq);
   wasio_finalize(&wfd);
   fiber_finalize();
 

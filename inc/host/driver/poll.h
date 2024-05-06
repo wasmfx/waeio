@@ -1,6 +1,6 @@
 // Host poll bindings
-#ifndef WAEIO_HOST_POLL_H
-#define WAEIO_HOST_POLL_H
+#ifndef WAEIO_HOST_DRIVER_POLL_H
+#define WAEIO_HOST_DRIVER_POLL_H
 
 #include <wasmtime.h>
 

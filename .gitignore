@@ -58,3 +58,7 @@ dkms.conf
 # Ignore generated files
 src/host/errno.c
 inc/host/errno.h
+inc/host/poll.h
+hostgen
+*.wasm
+httpserver_driver

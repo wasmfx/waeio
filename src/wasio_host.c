@@ -121,6 +121,7 @@ wasio_result_t wasio_accept(struct wasio_pollfd *wfd, wasio_fd_t vfd, wasio_fd_t
 
 wasio_result_t wasio_recv(struct wasio_pollfd *wfd, wasio_fd_t vfd, uint8_t *buf, uint32_t len, uint32_t *recvlen) {
   int fd = (int)wfd->fds[vfd];
+  //printf("[wasio_recv(%d)] invoking host recv\n", vfd);
   int ans = host_recv(fd, buf, len, &host_errno);
   if (ans < 0) return translate_error(host_errno);
   *recvlen = (uint32_t)ans;

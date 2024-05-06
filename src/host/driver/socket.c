@@ -3,7 +3,7 @@
 #include <arpa/inet.h>
 #include <error.h>
 #include <fcntl.h>
-#include <host/socket.h>
+#include <host/driver/socket.h>
 #include <host/wasmtime_utils.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -173,10 +173,13 @@ DEFINE_BINDING(host_recv) {
   uint8_t *mem;
   LOAD_MEMORY(mem, "host_recv");
 
+  /* printf("[host_recv(%d)] invoking recv.\n", (int)sockfd); */
+
   // Perform the system call.
   int ans = recv((int)sockfd, mem+boffset, (size_t)blen, 0);
 
   if (ans < 0) {
+    /* printf("[host_recv(%d)] error: %s(%d)\n", (int)sockfd, strerror(errno), errno); */
     WRITE_ERRNO("host_recv", 3);
   }
 

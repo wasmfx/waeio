@@ -14,8 +14,8 @@ You can compile and run this example on Linux with:
 #include <wasi.h>
 #include <wasm.h>
 #include <wasmtime.h>
-#include <host/poll.h>
-#include <host/socket.h>
+#include <host/driver/poll.h>
+#include <host/driver/socket.h>
 #include <host/wasmtime_utils.h>
 
 static void exit_with_error(const char *message, wasmtime_error_t *error,
@@ -113,8 +113,7 @@ int main(int argc, const char **argv) {
   wasmtime_linker_delete(linker);
   wasmtime_module_delete(module);
   wasmtime_store_delete(store);
-  wasm_engine_delete(engine);
-  wasm_config_delete(config);
+  wasm_engine_delete(engine); // deletes config too.
   return 0;
 }
 

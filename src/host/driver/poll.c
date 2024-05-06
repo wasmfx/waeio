@@ -3,7 +3,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <error.h>
-#include <host/socket.h>
 #include <host/wasmtime_utils.h>
 #include <poll.h>
 #include <stdio.h>
