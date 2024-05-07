@@ -5,7 +5,7 @@ WASM_INTERP=../spec/interpreter/wasm
 WASM_MERGE=../benchfx/binaryenfx/bin/wasm-merge --enable-multimemory --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O1 -I inc -DMAX_CONNECTIONS=256
 ifeq ($(MODE), debug)
-COMMON_FLAGS:=$(COMMON_FLAGS) -DDEBUG -g -ftrapv -fno-split-stack -fsanitize-trap
+COMMON_FLAGS:=$(COMMON_FLAGS) -DDEBUG -g -ftrapv -fno-split-stack -fsanitize-trap -fstack-protector
 endif
 WASIFLAGS=$(COMMON_FLAGS)
 CC=clang
