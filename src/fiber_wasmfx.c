@@ -13,24 +13,24 @@ typedef uintptr_t cont_table_index_t;
 
 // Initial size of the `$conts` table. Keep this value in sync with the
 // corresponding (table ...) definition.
-static const size_t INITIAL_TABLE_CAPACITY = 1024;
+static const uint32_t INITIAL_TABLE_CAPACITY = 1024;
 
 // The current capacity of the `$conts` table.
-static size_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
+static uint32_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
 // Number of entries at the end of `$conts` table that we have never used so
 // far.
 // Invariant:
 // `cont_table_unused_size` + `free_list_size` <= `cont_table_capacity`
-static size_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
+static uint32_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
 
 // This is a stack of indices into `$conts` that we have previously used, but
 // subsequently freed. Allocated as part of `fiber_init`. Invariant: Once
 // allocated, the capacity of the `free_list` (i.e., the number of `size_t`
 // values we allocate memory for) is the same as `cont_table_capacity`.
-static size_t* free_list = NULL;
+static uint32_t* free_list = NULL;
 // Number of entries in `free_list`.
 // Invariant: free_list_size <= `cont_table_capacity`.
-static size_t free_list_size = 0;
+static uint32_t free_list_size = 0;
 
 
 extern
@@ -50,7 +50,7 @@ __wasm_import__("fiber_wasmfx_imports", "wasmfx_suspend")
 void* wasmfx_suspend(void *arg);
 
 
- cont_table_index_t wasmfx_acquire_table_index() {
+static cont_table_index_t wasmfx_acquire_table_index() {
   uintptr_t table_index;
   if (cont_table_unused_size > 0) {
     // There is an entry in the continuation table that has not been used so far.
@@ -79,11 +79,10 @@ void* wasmfx_suspend(void *arg);
   return table_index;
 }
 
-void wasmfx_release_table_index(cont_table_index_t table_index) {
+static void wasmfx_release_table_index(cont_table_index_t table_index) {
   free_list[free_list_size] = table_index;
   free_list_size++;
 }
-
 
 __wasm_export__("fiber_alloc")
 fiber_t fiber_alloc(fiber_entry_point_t entry) {
@@ -118,6 +117,7 @@ void fiber_init() {
   free_list = malloc(INITIAL_TABLE_CAPACITY * sizeof(size_t));
 }
 
-__wasm_export__("fiber_finalize") void fiber_finalize() {
+__wasm_export__("fiber_finalize")
+void fiber_finalize() {
   free(free_list);
 }
