@@ -18,12 +18,6 @@
 
   (tag $yield (param i32) (result i32))
 
-  ;; Discriminants of the fiber_result_t enum defined in fiber.h.
-  ;; Must keep in sync.
-  (global $fiber_result_t_ok i32 (i32.const 0))
-  (global $fiber_result_t_yield i32 (i32.const 1))
-
-
   (func $grow_cont_table (export "wasmfx_grow_cont_table") (param $capacity_delta i32)
     (table.grow $conts (ref.null $ct1) (local.get $capacity_delta))
     (drop)
@@ -64,22 +58,26 @@
     (result i32)
     (local $k (ref $ct1))
 
-
     (block $handler (result i32 (ref $ct1) )
-      ;; put continuation argument on stack
-      (local.get $arg)
-      ;; put continuation itself on stack
-      (table.get $conts (local.get $cont_index))
-      (resume $ct1 (tag $yield $handler))
-      (i32.store (local.get $result_ptr) (global.get $fiber_result_t_ok))
-      (return) ;; returns the value put on stack by resume
+      (block $on_error
+        ;; Retrieve the continuation and test for null
+        (local.set $k (br_on_null $on_error
+           (table.get $conts (local.get $cont_index))))
+        ;; resume the continuation
+        (resume $ct1 (tag $yield $handler) (local.get $arg) (local.get $k))
+        (i32.store (local.get $result_ptr) (i32.const 0)) ;; FIBER_OK
+        (table.set $conts (local.get $cont_index) (ref.null $ct1))
+        (return) ;; returns the value put on stack by resume
+      ) ;; continuation is null
+      (i32.store (local.get $result_ptr) (i32.const 2)) ;; FIBER_ERROR
+      (return (i32.const -1))
     )
     (local.set $k)
 
     ;; stash continuation aside
     (table.set $conts (local.get $cont_index) (local.get $k))
 
-    (i32.store (local.get $result_ptr) (global.get $fiber_result_t_yield))
+    (i32.store (local.get $result_ptr) (i32.const 1)) ;; FIBER_YIELD
     ;; return suspend payload
     (return)
   )

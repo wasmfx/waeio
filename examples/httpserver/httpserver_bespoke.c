@@ -8,19 +8,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include <picohttpparser.h>
 
 int main(void) {
   // For connection management
-  int32_t len = 0, rc = 0;
+  int32_t rc = 0;
   int32_t listen_sd = -1, new_sd = -1;
   bool end_server = false, compress_array = false;
   bool close_conn;
   const int buffer_size = 4096;
   uint8_t reqbuf[buffer_size], resbuf[buffer_size];
-  struct pollfd fds[200];
+  struct pollfd fds[MAX_CONNECTIONS];
   uint32_t nfds = 1, current_size = 0;
 
   // For http parser management
@@ -120,8 +119,7 @@ int main(void) {
           }
 
           // Otherwise we must have received data
-          len = rc;
-          conn_log("  %d bytes received\n", len);
+          conn_log("  %d bytes received\n", rc);
 
           // Parse http request
           size_t prevbuflen = 0, buflen = 0;
