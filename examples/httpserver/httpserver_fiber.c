@@ -4,6 +4,7 @@
 #include <host/poll.h>
 #include <host/socket.h>
 #include <http_utils.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -44,16 +45,16 @@ static void* handle_connection(int32_t fd) {
       rc = host_recv(fd, (uint8_t*)reqbuf, buffer_size, &host_errno);
       // Was the connection closed by the client?
       if (rc == 0) {
-        conn_log("  [handle_connection(%d)] Connection closed\n", fd);
+        conn_log("  [handle_connection(%" PRIu32 ")] Connection closed\n", fd);
         return NULL;
       } else if (rc < 0) {
         if (host_errno != HOST_EAGAIN) {
-          conn_log("  [handle_connection(%d)] recv() failed\n", fd);
+          conn_log("  [handle_connection(%" PRIu32 ")] recv() failed\n", fd);
           return NULL;
         }
-        conn_log("  [handle_connection(%d)] yielding\n", fd);
+        conn_log("  [handle_connection(%" PRIu32 ")] yielding\n", fd);
         fd = (int32_t)(intptr_t)fiber_yield(NULL);
-        conn_log("  [handle_connection(%d)] continued with %d\n", fd, fd);
+        conn_log("  [handle_connection(%" PRIu32 ")] continued with %" PRIu32 "\n", fd, fd);
         if (fd == FIBER_KILL_SIGNAL) return NULL;
       } else {
         break;
@@ -61,16 +62,16 @@ static void* handle_connection(int32_t fd) {
     }
 
     // Otherwise we must have received data
-    conn_log("  [handle_connection(%d)] received %d bytes\n", fd, rc);
+    conn_log("  [handle_connection(%" PRIu32 ")] received %" PRIu32 " bytes\n", fd, rc);
 
     // Parse http request
     size_t prevbuflen = 0, buflen = 0;
     size_t num_headers = sizeof(headers) / sizeof(headers[0]);
-    conn_log("  [handle_connection(%d)] parsing request...", fd);
+    conn_log("  [handle_connection(%" PRIu32 ")] parsing request...", fd);
     rc = phr_parse_request((const char*)reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len,
                            &minor_version, headers, &num_headers, prevbuflen);
     if (num_headers <= 0) {
-      conn_log("  [handle_connection(%d)] no headers!", fd);
+      conn_log("  [handle_connection(%" PRIu32 ")] no headers!", fd);
       return NULL;
     }
 
@@ -96,14 +97,14 @@ static void* handle_connection(int32_t fd) {
     }
 
     if (rc == -1) {
-      conn_log("  [handle_connection(%d)] response generation failed\n", fd);
+      conn_log("  [handle_connection(%" PRIu32 ")] response generation failed\n", fd);
       return NULL;
     }
 
     // Send the response
     rc = host_send(fd, (uint8_t*)resbuf, rc, &host_errno);
     if (rc < 0) {
-      conn_log("  [handle_connection(%d)] send() failed\n", fd);
+      conn_log("  [handle_connection(%" PRIu32 ")] send() failed\n", fd);
     }
     if (end_server) return NULL;
   }
@@ -121,40 +122,40 @@ static void* listener(int32_t fd) {
   while (fd != FIBER_KILL_SIGNAL) {
     int32_t new_fd = -1;
     while (nfds == MAX_CONNECTIONS) {
-      conn_log("  [listener(%d)] queue is full, yielding.\n", fd);
+      conn_log("  [listener(%" PRIu32 ")] queue is full, yielding.\n", fd);
       fd = (int32_t)(intptr_t)fiber_yield(NULL); // TODO.
       if (fd == FIBER_KILL_SIGNAL) {
-        conn_log("  [listener(%d)] exiting\n", fd);
+        conn_log("  [listener(%" PRIu32 ")] exiting\n", fd);
         return NULL;
       }
     }
 
     // Accept all incoming requests
     do {
-      conn_log("  [listener(%d)] accept()\n", fd);
+      conn_log("  [listener(%" PRIu32 ")] accept()\n", fd);
       new_fd = host_accept(fd, &host_errno);
       if (new_fd < 0) {
         if (host_errno != HOST_EAGAIN) {
-          conn_log("  [listener(%d)] accept() failed: %s\n", fd, host_strerror(host_errno));
+          conn_log("  [listener(%" PRIu32 ")] accept() failed: %s\n", fd, host_strerror(host_errno));
           end_server = true;
           return NULL;
         }
-        conn_log("  [listener(%d)] yielding\n", fd);
+        conn_log("  [listener(%" PRIu32 ")] yielding\n", fd);
         fd = (int32_t)(intptr_t)fiber_yield(NULL); // TODO.
-        conn_log("  [listener(%d)] continued with %d\n", fd, fd);
+        conn_log("  [listener(%" PRIu32 ")] continued with %" PRIu32 "\n", fd, fd);
         if (fd == FIBER_KILL_SIGNAL) {
-          conn_log("  [listener(%d)] exiting\n", fd);
+          conn_log("  [listener(%" PRIu32 ")] exiting\n", fd);
           return NULL;
         }
       } else {
         // Add the new connection to the poll structure.
-        conn_log("  [listener(%d)] new incoming connection: %d\n", fd, new_fd);
+        conn_log("  [listener(%" PRIu32 ")] new incoming connection: %" PRIu32 "\n", fd, new_fd);
         fds[nfds].fd = new_fd;
         fds[nfds].events = HOST_POLLIN;
         fibers[nfds] = (struct fiber_closure){ .fiber = fiber_alloc((fiber_entry_point_t)(void*)handle_connection), .fd = new_fd };
         nfds++;
       }
-      conn_log("  [listener(%d)] connections: %d\n", fd, nfds);
+      conn_log("  [listener(%" PRIu32 ")] connections: %" PRIu32 "\n", fd, nfds);
     } while (nfds < MAX_CONNECTIONS && new_fd != -1);
   }
   return NULL;
@@ -163,19 +164,19 @@ static void* listener(int32_t fd) {
 static bool handle_command(uint32_t i, struct fiber_closure clo, void *payload __attribute__((unused)), fiber_result_t status) {
   switch (status) {
   case FIBER_OK:
-    conn_log("[handle_command] fiber(%d) finished\n", clo.fd);
+    conn_log("[handle_command] fiber(%" PRIu32 ") finished\n", clo.fd);
     fiber_free(clo.fiber);
     host_close(clo.fd, &host_errno);
     fds[i].fd = -1;
     nfds--;
     return true;
   case FIBER_YIELD:
-    conn_log("[handle_command] fiber(%d) yielded\n", clo.fd);
+    conn_log("[handle_command] fiber(%" PRIu32 ") yielded\n", clo.fd);
     fds[i].events = HOST_POLLIN;
     return false;
   case FIBER_ERROR:
   default:
-    conn_log("[handle_command] fiber(%d) error\n", clo.fd);
+    conn_log("[handle_command] fiber(%" PRIu32 ") error\n", clo.fd);
     fiber_free(clo.fiber);
     host_close(clo.fd, &host_errno);
     fds[i].fd = -1;
@@ -188,6 +189,7 @@ static bool handle_command(uint32_t i, struct fiber_closure clo, void *payload _
 int main(void) {
   uint32_t pollfd_size = 0;
   bool compress_pollfd = false;
+  fiber_init();
 
   // Set up listener
   int32_t listen_fd = host_listen(8080, 1000, &host_errno);
@@ -195,7 +197,7 @@ int main(void) {
     conn_log("socket() failed\n");
     exit(-1);
   }
-  conn_log("[main] listener is bound to socket %d\n", listen_fd);
+  conn_log("[main] listener is bound to socket %" PRIu32 "\n", listen_fd);
 
   // Initialise poll structure
   for (uint32_t i = 0; i < MAX_CONNECTIONS; i++) {
@@ -222,7 +224,7 @@ int main(void) {
         end_server = true;
         break;
       }
-      conn_log("  [main] poll() failed: error(%d): %s\n", host_errno, host_strerror(host_errno));
+      conn_log("  [main] poll() failed: error(%" PRIu32 "): %s\n", host_errno, host_strerror(host_errno));
       break;
     }
     pollfd_size = nfds;
@@ -230,7 +232,7 @@ int main(void) {
       if (fds[i].revents == 0) continue;
 
       if (fds[i].revents & HOST_POLLHUP) {
-        conn_log("  [main] connection %d hung up\n", fds[i].fd);
+        conn_log("  [main] connection %" PRIu32 " hung up\n", fds[i].fd);
         fiber_free(fibers[i].fiber);
         fibers[i].fd = -1;
         fds[i].fd = -1;
@@ -240,13 +242,13 @@ int main(void) {
       }
 
       if ((fds[i].revents & HOST_POLLIN) == 0) {
-        conn_log("  [main] error! revents = %d\n", fds[i].revents);
+        conn_log("  [main] error! revents = %" PRIu32 "\n", fds[i].revents);
         end_server = true;
         break;
       }
 
       // Resume fiber.
-      conn_log("[main] descriptor %d is readable.. resuming fiber\n", fds[i].fd);
+      conn_log("[main] descriptor %" PRIu32 " is readable.. resuming fiber\n", fds[i].fd);
       fiber_result_t status = FIBER_ERROR;
       void *ans = fiber_resume(fibers[i].fiber, (void*)(intptr_t)fibers[i].fd, &status);
       compress_pollfd = handle_command(i, fibers[i], ans, status);
@@ -264,24 +266,24 @@ int main(void) {
           nfds--;
         }
       }
-      memset(fds+nfds, 0, sizeof(struct pollfd)*(MAX_CONNECTIONS-nfds));
     }
   }
 
   // Clean up
-  conn_log("[main] nfds = %d\n", nfds);
+  conn_log("[main] nfds = %u\n", nfds);
   assert(0 < nfds && nfds <= MAX_CONNECTIONS);
   for (uint32_t i = 0; i < nfds; i++) {
     if (fds[i].fd == -1) continue;
 
     fiber_result_t status = FIBER_ERROR;
-    conn_log("[main] killing %u -> %d\n", i, fibers[i].fd);
+    conn_log("[main] killing %" PRIu32 " -> %" PRIu32 "\n", i, fibers[i].fd);
     (void)fiber_resume(fibers[i].fiber, (void*)(intptr_t)FIBER_KILL_SIGNAL, &status);
     assert(status == FIBER_OK);
     host_close(fds[i].fd, &host_errno);
     nfds--;
   }
   assert(nfds == 0);
+  fiber_finalize();
 
   return 0;
 }
