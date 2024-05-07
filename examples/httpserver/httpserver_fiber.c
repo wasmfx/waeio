@@ -105,6 +105,7 @@ static void* handle_connection(int32_t fd) {
     if (rc < 0) {
       conn_log("  [handle_connection(%d)] send() failed\n", fd);
     }
+    if (end_server) return NULL;
   }
 
   return NULL;
@@ -159,24 +160,25 @@ static void* listener(int32_t fd) {
   return NULL;
 }
 
-static bool handle_command(struct pollfd *pfd, struct fiber_closure clo, void *payload __attribute__((unused)), fiber_result_t status) {
+static bool handle_command(uint32_t i, struct fiber_closure clo, void *payload __attribute__((unused)), fiber_result_t status) {
   switch (status) {
   case FIBER_OK:
     conn_log("[handle_command] fiber(%d) finished\n", clo.fd);
     fiber_free(clo.fiber);
     host_close(clo.fd, &host_errno);
-    pfd->fd = -1;
+    fds[i].fd = -1;
     nfds--;
     return true;
   case FIBER_YIELD:
-    pfd->events = HOST_POLLIN;
+    conn_log("[handle_command] fiber(%d) yielded\n", clo.fd);
+    fds[i].events = HOST_POLLIN;
     return false;
   case FIBER_ERROR:
   default:
     conn_log("[handle_command] fiber(%d) error\n", clo.fd);
     fiber_free(clo.fiber);
     host_close(clo.fd, &host_errno);
-    pfd->fd = -1;
+    fds[i].fd = -1;
     nfds--;
     end_server = true;
     return false;
@@ -247,7 +249,7 @@ int main(void) {
       conn_log("[main] descriptor %d is readable.. resuming fiber\n", fds[i].fd);
       fiber_result_t status = FIBER_ERROR;
       void *ans = fiber_resume(fibers[i].fiber, (void*)(intptr_t)fibers[i].fd, &status);
-      compress_pollfd = handle_command(&fds[i], fibers[i], ans, status);
+      compress_pollfd = handle_command(i, fibers[i], ans, status);
       if (compress_pollfd) fds[i].fd = -1;
     }
 
