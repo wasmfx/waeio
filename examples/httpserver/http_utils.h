@@ -48,15 +48,19 @@ static inline int response_ok(uint8_t *buffer, uint32_t buflen, const uint8_t *b
 }
 
 static inline int response_notfound(uint8_t *buffer, uint32_t buflen, const uint8_t *body, int content_length) {
-  return make_response(buffer, buflen, "404 Not found", body, content_length);
+  return make_response(buffer, buflen, "404 Not Found", body, content_length);
 }
 
 static inline int response_err(uint8_t *buffer, uint32_t buflen, const uint8_t *body, int content_length) {
-  return make_response(buffer, buflen, "500 Internal server error", body, content_length);
+  return make_response(buffer, buflen, "500 Internal Server Error", body, content_length);
 }
 
 static inline int response_toolarge(uint8_t *buffer, uint32_t buflen, const uint8_t *body, int content_length) {
-  return make_response(buffer, buflen, "413 Content too large", body, content_length);
+  return make_response(buffer, buflen, "413 Content Too Large", body, content_length);
+}
+
+static inline int response_badrequest(uint8_t *buffer, uint32_t buflen, const uint8_t *body, int content_length) {
+  return make_response(buffer, buflen, "400 Bad Request", body, content_length);
 }
 
 const char *response_body =

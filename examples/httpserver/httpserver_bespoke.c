@@ -10,15 +10,27 @@
 #include <string.h>
 #include <time.h>
 
+#include <picohttpparser.h>
+
 int main(void) {
+  // For connection management
   int32_t len = 0, rc = 0;
   int32_t listen_sd = -1, new_sd = -1;
   bool end_server = false, compress_array = false;
   bool close_conn;
-  const int buffer_size = 2048;
+  const int buffer_size = 4096;
   uint8_t reqbuf[buffer_size], resbuf[buffer_size];
   struct pollfd fds[200];
   uint32_t nfds = 1, current_size = 0;
+
+  // For http parser management
+  const char *method;
+  size_t method_len;
+  const char *path;
+  size_t path_len;
+  int minor_version;
+  const uint32_t max_headers = 100;
+  struct phr_header headers[max_headers];
 
   // Set up listener
   listen_sd = host_listen(8080, 1000, &host_errno);
@@ -59,7 +71,7 @@ int main(void) {
       if(fds[i].revents == 0) continue;
 
       // Expect revent to be POLLIN.
-      if(fds[i].revents != HOST_POLLIN) {
+      if((fds[i].revents & HOST_POLLIN) == 0) {
         conn_log("  Error! revents = %d\n", fds[i].revents);
         end_server = true;
         break;
@@ -93,7 +105,7 @@ int main(void) {
           // Receive incoming data
           rc = host_recv(fds[i].fd, (uint8_t*)reqbuf, 2048, &host_errno);
           if (rc < 0) {
-            if (host_errno != HOST_EWOULDBLOCK) {
+            if (host_errno != HOST_EAGAIN) {
               perror("  recv() failed");
               close_conn = true;
             }
@@ -111,13 +123,41 @@ int main(void) {
           len = rc;
           conn_log("  %d bytes received\n", len);
 
-          // Echo the request back as a response
-          rc = make_response(resbuf, buffer_size, "200 OK", reqbuf, len);
-          if (rc < 0) {
+          // Parse http request
+          size_t prevbuflen = 0, buflen = 0;
+          size_t num_headers = sizeof(headers) / sizeof(headers[0]);
+          rc = phr_parse_request((const char*)reqbuf, sizeof(reqbuf) - buflen, &method, &method_len, &path, &path_len,
+                                 &minor_version, headers, &num_headers, prevbuflen);
+
+          if (rc > 0) {
+            if (path_len == 1 && strncmp(path, "/", 1) == 0) {
+              conn_log("  request OK /\n");
+              rc = response_ok((uint8_t*)resbuf, buffer_size, (uint8_t*)response_body, (uint32_t)strlen(response_body)); // OK
+            } else if (path_len == strlen("/quit") && strncmp(path, "/quit", strlen("/quit")) == 0) {
+              conn_log("  request OK /quit\n");
+              rc = response_ok((uint8_t*)resbuf, buffer_size, (uint8_t*)"OK bye...\n", (uint32_t)strlen("OK bye...\n")); // Quit
+              close_conn = true;
+              end_server = true;
+            } else {
+              conn_log("  request Not Found\n");
+              rc = response_notfound((uint8_t*)resbuf, buffer_size, NULL, 0); // Not found
+            }
+          } else if (rc == -1) { // Parse failure
+            conn_log("  request parse failure\n");
+            rc = response_badrequest((uint8_t*)resbuf, buffer_size, NULL, 0); // Parse error
+          } else { // Partial parse
+            conn_log("  partial request parse\n");
+            assert(rc == -2);
+            rc = response_toolarge((uint8_t*)resbuf, buffer_size, NULL, 0);
+          }
+
+          if (rc == -1) {
             perror("  response generation failed");
             close_conn = true;
             break;
           }
+
+          // Send the response
           rc = host_send(fds[i].fd, (uint8_t*)resbuf, rc, &host_errno);
           if (rc < 0) {
             perror("  send() failed");

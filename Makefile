@@ -36,7 +36,7 @@ httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h e
 	chmod +x httpserver_host_wasmfx.wasm
 
 httpserver_host_bespoke.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_bespoke.c examples/httpserver/http_utils.h
-	$(WASICC) src/host/errno.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_bespoke.c -o httpserver_host_bespoke.wasm
+	$(WASICC) src/host/errno.c vendor/picohttpparser/picohttpparser.c $(WASIFLAGS) -I vendor/picohttpparser -I examples/httpserver examples/httpserver/httpserver_bespoke.c -o httpserver_host_bespoke.wasm
 
 .PHONY: httpserver_host
 httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/httpserver.c httpserver_host_asyncify.wasm httpserver_host_wasmfx.wasm httpserver_host_bespoke.wasm
@@ -75,4 +75,4 @@ clean:
 	rm -f hostgen
 	rm -f freelist_tests
 	rm -f hello_driver echoserver_driver httpserver_driver
-	rm -f src/host/errno.c inc/host/errno.h
+	rm -f src/host/errno.c inc/host/errno.h inc/host/poll.h
