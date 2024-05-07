@@ -20,12 +20,12 @@ struct fiber_closure {
   int32_t fd;
 };
 
-static struct fiber_closure fibers[MAX_CONNECTIONS];
-static struct pollfd fds[MAX_CONNECTIONS];
 static uint32_t nfds = 0;
 static bool end_server = false;
+static struct fiber_closure fibers[MAX_CONNECTIONS];
+static struct pollfd fds[MAX_CONNECTIONS];
 
-static const uint32_t buffer_size = 4096;
+static const uint32_t buffer_size = 8192;
 static const uint32_t max_headers = 100;
 
 static void* handle_connection(int32_t fd) {
@@ -61,7 +61,7 @@ static void* handle_connection(int32_t fd) {
     }
 
     // Otherwise we must have received data
-    conn_log("  [handle_connection(%d) received %d bytes\n", fd, rc);
+    conn_log("  [handle_connection(%d)] received %d bytes\n", fd, rc);
 
     // Parse http request
     size_t prevbuflen = 0, buflen = 0;
@@ -110,6 +110,12 @@ static void* handle_connection(int32_t fd) {
   return NULL;
 }
 
+// NOTE(dhil): It appears the toolchain performs some optimisation
+// that inadvertently sets `fd = 0` after a yield. To mitigate this,
+// we can either use a global variable, make `fd` a static variable
+// inside the function, or return the fd on each yield (effectively
+// making each fiber routine a reader monad). I have opted for the
+// last option.
 static void* listener(int32_t fd) {
   while (fd != FIBER_KILL_SIGNAL) {
     int32_t new_fd = -1;
@@ -147,6 +153,7 @@ static void* listener(int32_t fd) {
         fibers[nfds] = (struct fiber_closure){ .fiber = fiber_alloc((fiber_entry_point_t)(void*)handle_connection), .fd = new_fd };
         nfds++;
       }
+      conn_log("  [listener(%d)] connections: %d\n", fd, nfds);
     } while (nfds < MAX_CONNECTIONS && new_fd != -1);
   }
   return NULL;
@@ -213,12 +220,22 @@ int main(void) {
         end_server = true;
         break;
       }
-      conn_log("  [main] poll() failed\n");
+      conn_log("  [main] poll() failed: error(%d): %s\n", host_errno, host_strerror(host_errno));
       break;
     }
     pollfd_size = nfds;
     for (uint32_t i = 0; i < pollfd_size; i++) {
       if (fds[i].revents == 0) continue;
+
+      if (fds[i].revents & HOST_POLLHUP) {
+        conn_log("  [main] connection %d hung up\n", fds[i].fd);
+        fiber_free(fibers[i].fiber);
+        fibers[i].fd = -1;
+        fds[i].fd = -1;
+        compress_pollfd = true;
+        nfds--;
+        continue;
+      }
 
       if ((fds[i].revents & HOST_POLLIN) == 0) {
         conn_log("  [main] error! revents = %d\n", fds[i].revents);
@@ -231,6 +248,7 @@ int main(void) {
       fiber_result_t status = FIBER_ERROR;
       void *ans = fiber_resume(fibers[i].fiber, (void*)(intptr_t)fibers[i].fd, &status);
       compress_pollfd = handle_command(&fds[i], fibers[i], ans, status);
+      if (compress_pollfd) fds[i].fd = -1;
     }
 
     if (compress_pollfd) {
@@ -249,8 +267,8 @@ int main(void) {
   }
 
   // Clean up
-  assert(0 < nfds && nfds <= MAX_CONNECTIONS);
   conn_log("[main] nfds = %d\n", nfds);
+  assert(0 < nfds && nfds <= MAX_CONNECTIONS);
   for (uint32_t i = 0; i < nfds; i++) {
     if (fds[i].fd == -1) continue;
 
