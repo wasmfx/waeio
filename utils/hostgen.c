@@ -194,20 +194,22 @@ void emit_errno_c(FILE *fp, const struct errno_item items[ERRNO_ITEMS]) {
   emit_stringln(fp, "#include <stdint.h>\n");
   emit_stringln(fp, "int32_t host_errno = 0;\n");
   emit_stringln(fp, "const char* host_strerror(int32_t e) {");
+  emit_stringln(fp, "  switch (e) {");
   for (int i = 0; i < ERRNO_ITEMS; i++) {
     if (!seen[items[i].code]) {
       seen[items[i].code] = true;
-      emit_string(fp, "  if (");
-      fprintf(fp, "e == HOST_%s", items[i].name);
-      for (int j = 0; j < ERRNO_ITEMS; j++) {
-        if (i != j && items[i].code == items[j].code) {
-          fprintf(fp, " || e == HOST_%s", items[j].name);
-        }
-      }
-      fprintf(fp, ") return \"%s\";\n", strerror(items[i].code));
+      fprintf(fp, "    case HOST_%s:\n", items[i].name);
+      /* for (int j = 0; j < ERRNO_ITEMS; j++) { */
+      /*   if (i != j && items[i].code == items[j].code) { */
+      /*     fprintf(fp, "    case HOST_%s:\n", items[j].name); */
+      /*   } */
+      /* } */
+      fprintf(fp, "      return \"%s\";\n", strerror(items[i].code));
     }
   }
-  emit_stringln(fp, "  return \"UNKNOWN ERROR\";");
+  emit_stringln(fp, "    default:");
+  emit_stringln(fp, "      return \"UNKNOWN ERROR\";");
+  emit_stringln(fp, "  }");
   emit_stringln(fp, "}");
 }
 
@@ -229,6 +231,30 @@ void emit_poll_h(FILE *fp) {
   fprintf(fp, "#define HOST_POLLIN %d\n", POLLIN);
   fprintf(fp, "#define HOST_POLLPRI %d\n", POLLPRI);
   fprintf(fp, "#define HOST_POLLOUT %d\n", POLLOUT);
+
+#if defined POLLRDNORM
+  fprintf(fp, "#define HOST_POLLRDNORM %d\n", POLLRDNORM);
+#endif
+#if defined POLLRDBAND
+  fprintf(fp, "#define HOST_POLLRDBAND %d\n", POLLRDBAND);
+#endif
+#if defined POLLWRNORM
+  fprintf(fp, "#define HOST_POLLWRNORM %d\n", POLLWRNORM);
+#endif
+#if defined POLLWRBAND
+  fprintf(fp, "#define HOST_POLLWRBAND %d\n", POLLWRBAND);
+#endif
+
+#if defined POLLMSG
+  fprintf(fp, "#define HOST_POLLMSG %d\n", POLLMSG);
+#endif
+#if defined POLLREMOVE
+  fprintf(fp, "#define HOST_POLLREMOVE %d\n", POLLREMOVE);
+#endif
+#if defined POLLRHUP
+  fprintf(fp, "#define HOST_POLLRDHUP %d\n", POLLRDHUP);
+#endif
+
   fprintf(fp, "#define HOST_POLLERR %d\n", POLLERR);
   fprintf(fp, "#define HOST_POLLHUP %d\n", POLLHUP);
   fprintf(fp, "#define HOST_POLLNVAL %d\n\n", POLLNVAL);
