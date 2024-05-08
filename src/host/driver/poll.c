@@ -45,9 +45,10 @@ DEFINE_BINDING(host_poll) {
   struct pollfd *pollfd = (struct pollfd*)(mem+soffset);
 
   // Perform the system call.
+  /* printf("[host_poll] slen = %u, timeout = %d\n", slen, timeout); */
   int ans = poll(pollfd, (nfds_t)slen, (int)timeout);
 
-  //printf("[host_poll] ans = %d, errno = %d, strerror = %s\n", ans, errno, strerror(errno));
+  /* printf("[host_poll] ans = %d, errno = %d, strerror = %s\n", ans, errno, strerror(errno)); */
 
   if (ans < 0) {
     WRITE_ERRNO("host_poll", 3);
