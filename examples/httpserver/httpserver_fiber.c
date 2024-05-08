@@ -209,7 +209,8 @@ int main(void) {
   fiber_init();
 
   // Set up listener
-  int32_t listen_fd = host_listen(8080, 1000, &host_errno);
+  const int32_t backlog = MAX_CONNECTIONS * 2;
+  int32_t listen_fd = host_listen(8080, backlog, &host_errno);
   if (listen_fd < 0) {
     conn_log("socket() failed\n");
     exit(-1);

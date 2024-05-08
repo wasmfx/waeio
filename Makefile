@@ -1,4 +1,4 @@
-MAX_CONNECTIONS=256
+MAX_CONNECTIONS=1024
 MODE?=release
 VERBOSE?=0
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
