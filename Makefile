@@ -12,7 +12,7 @@ ifeq ($(VERBOSE), 1)
 COMMON_FLAGS:=$(COMMON_FLAGS) -DVERBOSE
 endif
 endif
-WASIFLAGS=$(COMMON_FLAGS)
+WASIFLAGS=$(COMMON_FLAGS) --sysroot=../benchfx/wasi-sdk-22.0/share/wasi-sysroot
 CC=clang
 CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/$(MODE)/libwasmtime.a -lpthread -ldl -lm -fuse-ld=mold
 
