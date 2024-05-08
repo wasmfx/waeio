@@ -11,6 +11,12 @@
 #define conn_log(...) {}
 #endif
 
+#if defined VERBOSE
+#define conn_logv(...) printf(__VA_ARGS__)
+#else
+#define conn_logv(...) {}
+#endif
+
 static int make_response(uint8_t *buffer, uint32_t buflen, const char *httpcode, const uint8_t *body, uint32_t content_length) {
   static const char *daysOfWeek[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
   static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};

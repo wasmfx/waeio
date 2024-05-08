@@ -30,6 +30,9 @@ int main(int argc, const char **argv) {
 
   // Set up our context
   wasm_config_t *config = wasm_config_new();
+#if defined DEBUG
+  wasmtime_config_debug_info_set(config, true);
+#endif
   wasmtime_config_wasm_function_references_set(config, true);
   wasmtime_config_wasm_exceptions_set(config, true);
   wasmtime_config_wasm_typed_continuations_set(config, true);
