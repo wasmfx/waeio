@@ -56,6 +56,7 @@ dkms.conf
 \#*
 
 # Ignore generated files
+src/fiber_wasmfx_imports.wat
 src/host/errno.c
 inc/host/errno.h
 inc/host/poll.h

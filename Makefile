@@ -1,11 +1,16 @@
-MODE=debug
+MAX_CONNECTIONS=256
+MODE?=release
+VERBOSE?=0
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
 WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 WASM_INTERP=../spec/interpreter/wasm
 WASM_MERGE=../benchfx/binaryenfx/bin/wasm-merge --enable-multimemory --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations
-COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=256
+COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -DMAX_CONNECTIONS=$(MAX_CONNECTIONS)
 ifeq ($(MODE), debug)
 COMMON_FLAGS:=$(COMMON_FLAGS) -DDEBUG -g -ftrapv -fno-split-stack -fsanitize-trap -fstack-protector
+ifeq ($(VERBOSE), 1)
+COMMON_FLAGS:=$(COMMON_FLAGS) -DVERBOSE
+endif
 endif
 WASIFLAGS=$(COMMON_FLAGS)
 CC=clang
@@ -29,14 +34,17 @@ httpserver_host_asyncify.wasm:  inc/host/errno.h src/host/errno.c inc/host/poll.
 	$(ASYNCIFY) httpserver_host_asyncfiy.pre.wasm -o httpserver_host_asyncify.wasm
 	chmod +x httpserver_host_asyncify.wasm
 
-httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_fiber.c examples/httpserver/http_utils.h
-	$(WASICC) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c src/fiber_wasmfx.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
+httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
+	$(WASICC) -DINITIAL_TABLE_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c src/fiber_wasmfx.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
 	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.pre.wasm "benchmark" -o httpserver_host_wasmfx.wasm
 	chmod +x httpserver_host_wasmfx.wasm
 
 httpserver_host_bespoke.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_bespoke.c examples/httpserver/http_utils.h
 	$(WASICC) src/host/errno.c vendor/picohttpparser/picohttpparser.c $(WASIFLAGS) -I vendor/picohttpparser -I examples/httpserver examples/httpserver/httpserver_bespoke.c -o httpserver_host_bespoke.wasm
+
+src/fiber_wasmfx_imports.wat: src/fiber_wasmfx_imports.wat.pp
+	$(CC) -xc -DINITIAL_TABLE_CAPACITY=$(MAX_CONNECTIONS) -E src/fiber_wasmfx_imports.wat.pp | tail -n+8 > src/fiber_wasmfx_imports.wat
 
 .PHONY: httpserver_host
 httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/driver.c httpserver_host_asyncify.wasm httpserver_host_wasmfx.wasm httpserver_host_bespoke.wasm
@@ -76,3 +84,4 @@ clean:
 	rm -f freelist_tests
 	rm -f hello_driver echoserver_driver httpserver_driver
 	rm -f src/host/errno.c inc/host/errno.h inc/host/poll.h
+	rm -f src/fiber_wasmfx_imports.wat

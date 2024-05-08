@@ -13,15 +13,15 @@ typedef uintptr_t cont_table_index_t;
 
 // Initial size of the `$conts` table. Keep this value in sync with the
 // corresponding (table ...) definition.
-static const uint32_t INITIAL_TABLE_CAPACITY = 1024;
+static const uint32_t initial_table_capacity = INITIAL_TABLE_CAPACITY;
 
 // The current capacity of the `$conts` table.
-static uint32_t cont_table_capacity = INITIAL_TABLE_CAPACITY;
+static uint32_t cont_table_capacity = initial_table_capacity;
 // Number of entries at the end of `$conts` table that we have never used so
 // far.
 // Invariant:
 // `cont_table_unused_size` + `free_list_size` <= `cont_table_capacity`
-static uint32_t cont_table_unused_size = INITIAL_TABLE_CAPACITY;
+static uint32_t cont_table_unused_size = initial_table_capacity;
 
 // This is a stack of indices into `$conts` that we have previously used, but
 // subsequently freed. Allocated as part of `fiber_init`. Invariant: Once
@@ -114,7 +114,7 @@ void* fiber_yield(void *arg) {
 
 __wasm_export__("fiber_init")
 void fiber_init() {
-  free_list = malloc(INITIAL_TABLE_CAPACITY * sizeof(size_t));
+  free_list = malloc(initial_table_capacity * sizeof(size_t));
 }
 
 __wasm_export__("fiber_finalize")

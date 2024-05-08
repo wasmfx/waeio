@@ -13,7 +13,7 @@
 
   ;; Keep the initial size of this table in sync with INITIAL_TABLE_CAPACITY in
   ;; .c file.
-  (table $conts 1024 (ref null $ct1))
+  (table $conts INITIAL_TABLE_CAPACITY (ref null $ct1))
 
 
   (tag $yield (param i32) (result i32))
