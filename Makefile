@@ -45,19 +45,13 @@ httpserver_host_asyncify.wasm:  inc/host/errno.h src/host/errno.c inc/host/poll.
 	chmod +x httpserver_host_asyncify.wasm
 
 httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
-	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
-
-	# Export stack pointer global as __exported_shadow_stack_pointer
-	$(WASM_INTERP) -d -i httpserver_host_wasmfx.pre.wasm -o httpserver_host_wasmfx.pre.wat
-	vendor/fiber-c/src/wasmfx/export_shadow_stack_ptr.sh httpserver_host_wasmfx.pre.wat httpserver_host_wasmfx.patched_pre.wat
-	$(WASM_INTERP) -d -i httpserver_host_wasmfx.patched_pre.wat -o httpserver_host_wasmfx.patched_pre.wasm
-
+	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory,--export=__stack_pointer vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.patched_pre.wasm "main"  -o httpserver_host_wasmfx.merged.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.pre.wasm "main"  -o httpserver_host_wasmfx.merged.wasm
 
 	# HOTFIX: We need to delete the stack pointer export for now (wasmtime doesn't like it)
 	$(WASM_INTERP) -d -i httpserver_host_wasmfx.merged.wasm -o httpserver_host_wasmfx.merged.wat
-	sed  's/.*(export "__exported_shadow_stack_pointer".*//' httpserver_host_wasmfx.merged.wat > httpserver_host_wasmfx.wat
+	sed  's/.*(export "__stack_pointer".*//' httpserver_host_wasmfx.merged.wat > httpserver_host_wasmfx.wat
 	$(WASM_INTERP) -d -i httpserver_host_wasmfx.wat -o httpserver_host_wasmfx.wasm
 
 	chmod +x httpserver_host_wasmfx.wasm
@@ -70,15 +64,15 @@ httpserver_wasio_host_asyncify.wasm: inc/wasio.h inc/host/errno.h src/wasio/host
 	chmod +x httpserver_wasio_host_asyncify.wasm
 
 httpserver_wasio_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h src/wasio/host_poll.c examples/httpserver/httpserver_wasio_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
-	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
-
-	# Export stack pointer global as __exported_shadow_stack_pointer
-	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.pre.wasm -o httpserver_wasio_host_wasmfx.pre.wat
-	vendor/fiber-c/src/wasmfx/export_shadow_stack_ptr.sh httpserver_wasio_host_wasmfx.pre.wat httpserver_wasio_host_wasmfx.patched_pre.wat
-	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.patched_pre.wat -o httpserver_wasio_host_wasmfx.patched_pre.wasm
-
+	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory,--export=__stack_pointer vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.patched_pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.merged.wasm
+
+	# HOTFIX: We need to delete the stack pointer export for now (wasmtime doesn't like it)
+	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.merged.wasm -o httpserver_wasio_host_wasmfx.merged.wat
+	sed  's/.*(export "__stack_pointer".*//' httpserver_wasio_host_wasmfx.merged.wat > httpserver_wasio_host_wasmfx.wat
+	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.wat -o httpserver_wasio_host_wasmfx.wasm
+
 	chmod +x httpserver_wasio_host_wasmfx.wasm
 
 httpserver_host_bespoke.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_bespoke.c examples/httpserver/http_utils.h
