@@ -34,11 +34,11 @@ struct wasio_pollfd {
   struct pollfd *fds;
 };
 
-#define WASIO_STATIC_INITIALIZER(wfd, capacity) \
-  static struct pollfd _wasio_fds[capacity]; \
+#define WASIO_STATIC_INITIALIZER(wfd, max_conns) \
+  static struct pollfd _wasio_fds[max_conns]; \
   static struct wasio_pollfd (wfd) = (struct wasio_pollfd) { \
-    .capacity = capacity, .length = 0, .fds = &_wasio_fds \
-  };
+    .capacity = (max_conns), .length = 0, .fds = _wasio_fds  \
+  }
 
 static_assert(sizeof(int) == 4, "size of int");
 static_assert(sizeof(int32_t) == 4, "size of int32_t");
@@ -46,7 +46,7 @@ static_assert(sizeof(struct pollfd*) == 4, "pointer width");
 static_assert(sizeof(struct wasio_pollfd) == 12, "size of struct wasio_pollfd");
 static_assert(offsetof(struct wasio_pollfd, capacity) == 0, "offset of capacity");
 static_assert(offsetof(struct wasio_pollfd, length) == 4, "offset of length");
-static_assert(offsetof(struct wasio_pollfd, vfds) == 8, "offset of fds");
+static_assert(offsetof(struct wasio_pollfd, fds) == 8, "offset of fds");
 
 // Virtual file descriptor.
 typedef int32_t wasio_fd_t;
@@ -56,6 +56,7 @@ typedef enum {
   WASIO_ERROR = 1,
   WASIO_EFULL = 2,
   WASIO_EAGAIN = 3,
+  WASIO_ECONN = 4
 } wasio_result_t;
 
 extern

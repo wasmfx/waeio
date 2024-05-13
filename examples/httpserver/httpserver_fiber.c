@@ -201,7 +201,7 @@ static bool handle_command(uint32_t i, struct fiber_closure clo, void *payload _
     fds[i].fd = -1;
     nfds--;
     end_server = true;
-    return false;
+    return true;
   }
 }
 
@@ -270,7 +270,7 @@ int main(void) {
       conn_log("[main] descriptor %" PRIi32 " is readable.. resuming fiber\n", fds[i].fd);
       fiber_result_t status = FIBER_ERROR;
       void *ans = fiber_resume(fibers[i].fiber, (void*)(intptr_t)fibers[i].fd, &status);
-      compress_pollfd = handle_command(i, fibers[i], ans, status);
+      compress_pollfd = handle_command(i, fibers[i], ans, status) || compress_pollfd;
       if (compress_pollfd) fds[i].fd = -1;
     }
 
