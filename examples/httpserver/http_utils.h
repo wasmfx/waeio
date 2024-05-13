@@ -6,13 +6,13 @@
 #include <time.h>
 
 #if defined DEBUG
-#define conn_log(...) printf(__VA_ARGS__)
+#define conn_log(...) { printf(__VA_ARGS__); fflush(stdout); }
 #else
 #define conn_log(...) {}
 #endif
 
 #if defined VERBOSE
-#define conn_logv(...) printf(__VA_ARGS__)
+#define conn_logv(...) { printf(__VA_ARGS__); fflush(stdout); }
 #else
 #define conn_logv(...) {}
 #endif
