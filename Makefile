@@ -44,12 +44,12 @@ httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h e
 httpserver_wasio_host: inc/wasio.h httpserver_wasio_host_wasmfx.wasm httpserver_wasio_host_asyncify.wasm
 
 httpserver_wasio_host_asyncify.wasm: inc/wasio.h inc/host/errno.h src/wasio/host_poll.c examples/httpserver/http_utils.h examples/httpserver/httpserver_wasio_fiber.c
-	$(WASICC) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/host/errno.c src/wasio/host_poll.c src/fiber_asyncify.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_asyncfiy.pre.wasm -I vendor/picohttpparser
+	$(WASICC) -DASYNCIFY_DEFAULT_STACK_SIZE=$(ASYNCIFY_DEFAULT_STACK_SIZE) -DWASIO_BACKEND=2 vendor/picohttpparser/picohttpparser.c src/host/errno.c src/wasio/host_poll.c vendor/fiber-c/src/asyncify/asyncify_impl.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_asyncfiy.pre.wasm -I vendor/picohttpparser
 	$(ASYNCIFY) httpserver_wasio_host_asyncfiy.pre.wasm -o httpserver_wasio_host_asyncify.wasm
 	chmod +x httpserver_wasio_host_asyncify.wasm
 
 httpserver_wasio_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h src/wasio/host_poll.c examples/httpserver/httpserver_wasio_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
-	$(WASICC) -DWASIO_BACKEND=2 -DINITIAL_TABLE_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c src/fiber_wasmfx.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
+	$(WASICC) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
 	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.wasm
 	chmod +x httpserver_wasio_host_wasmfx.wasm
