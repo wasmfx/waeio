@@ -1,5 +1,8 @@
 MAX_CONNECTIONS=1024
 ASYNCIFY_DEFAULT_STACK_SIZE?=2097152
+WASMFX_PRESERVE_SHADOW_STACK?=1
+# Only relevant if WASMFX_PRESERVE_SHADOW_STACK is 1
+WASMFX_CONT_SHADOW_STACK_SIZE?=65536
 MODE?=release
 VERBOSE?=0
 ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
@@ -16,6 +19,12 @@ endif
 WASIFLAGS=$(COMMON_FLAGS) --sysroot=../benchfx/wasi-sdk-22.0/share/wasi-sysroot
 CC=clang
 CFLAGS=$(COMMON_FLAGS) -I ../wasmtime/crates/c-api/include -I ../wasmtime/crates/c-api/wasm-c-api/include ../wasmtime/target/$(MODE)/libwasmtime.a -lpthread -ldl -lm -fuse-ld=mold
+ifeq ($(WASMFX_PRESERVE_SHADOW_STACK),1)
+  SHADOW_STACK_FLAG=-DFIBER_WASMFX_PRESERVE_SHADOW_STACK
+else
+  SHADOW_STACK_FLAG=
+endif
+
 
 .PHONY: echoserver_wasi
 echoserver_wasi: examples/echoserver/echoserver.c
@@ -36,9 +45,15 @@ httpserver_host_asyncify.wasm:  inc/host/errno.h src/host/errno.c inc/host/poll.
 	chmod +x httpserver_host_asyncify.wasm
 
 httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
-	$(WASICC) -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
+	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_fiber.c -o httpserver_host_wasmfx.pre.wasm -I vendor/picohttpparser
+
+	# Export stack pointer global as __exported_shadow_stack_pointer
+	$(WASM_INTERP) -d -i httpserver_host_wasmfx.pre.wasm -o httpserver_host_wasmfx.pre.wat
+	vendor/fiber-c/src/wasmfx/export_shadow_stack_ptr.sh httpserver_host_wasmfx.pre.wat httpserver_host_wasmfx.patched_pre.wat
+	$(WASM_INTERP) -d -i httpserver_host_wasmfx.patched_pre.wat -o httpserver_host_wasmfx.patched_pre.wasm
+
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.pre.wasm "main" -o httpserver_host_wasmfx.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.patched_pre.wasm "main" -o httpserver_host_wasmfx.wasm
 	chmod +x httpserver_host_wasmfx.wasm
 
 httpserver_wasio_host: inc/wasio.h httpserver_wasio_host_wasmfx.wasm httpserver_wasio_host_asyncify.wasm
@@ -49,16 +64,22 @@ httpserver_wasio_host_asyncify.wasm: inc/wasio.h inc/host/errno.h src/wasio/host
 	chmod +x httpserver_wasio_host_asyncify.wasm
 
 httpserver_wasio_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h src/wasio/host_poll.c examples/httpserver/httpserver_wasio_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
-	$(WASICC) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
+	$(WASICC) $(SHADOW_STACK_FLAG) -DWASMFX_CONT_SHADOW_STACK_SIZE=$(WASMFX_CONT_SHADOW_STACK_SIZE) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
+
+	# Export stack pointer global as __exported_shadow_stack_pointer
+	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.pre.wasm -o httpserver_wasio_host_wasmfx.pre.wat
+	vendor/fiber-c/src/wasmfx/export_shadow_stack_ptr.sh httpserver_wasio_host_wasmfx.pre.wat httpserver_wasio_host_wasmfx.patched_pre.wat
+	$(WASM_INTERP) -d -i httpserver_wasio_host_wasmfx.patched_pre.wat -o httpserver_wasio_host_wasmfx.patched_pre.wasm
+
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.patched_pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.wasm
 	chmod +x httpserver_wasio_host_wasmfx.wasm
 
 httpserver_host_bespoke.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_bespoke.c examples/httpserver/http_utils.h
 	$(WASICC) src/host/errno.c vendor/picohttpparser/picohttpparser.c $(WASIFLAGS) -I vendor/picohttpparser -I examples/httpserver examples/httpserver/httpserver_bespoke.c -o httpserver_host_bespoke.wasm
 
 src/fiber_wasmfx_imports.wat: vendor/fiber-c/src/wasmfx/imports.wat.pp
-	$(CC) -xc -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -E vendor/fiber-c/src/wasmfx/imports.wat.pp | tail -n+8 > src/fiber_wasmfx_imports.wat
+	$(CC) -xc $(SHADOW_STACK_FLAG) -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -E vendor/fiber-c/src/wasmfx/imports.wat.pp | sed 's/^#.*//g' > src/fiber_wasmfx_imports.wat
 
 .PHONY: httpserver_host
 httpserver_host: inc/host/errno.h src/host/errno.c examples/httpserver/driver.c httpserver_host_asyncify.wasm httpserver_host_wasmfx.wasm httpserver_host_bespoke.wasm httpserver_wasio_host
@@ -94,6 +115,7 @@ inc/host/poll.h: hostgen
 clean:
 	rm -f *.o
 	rm -f *.wasm
+	rm -f *.wat
 	rm -f hostgen
 	rm -f freelist_tests
 	rm -f hello_driver echoserver_driver httpserver_driver
