@@ -1,3 +1,6 @@
 [submodule "vendor/picohttpparser"]
 	path = vendor/picohttpparser
 	url = git@github.com:h2o/picohttpparser.git
+[submodule "vendor/fiber-c"]
+	path = vendor/fiber-c
+	url = https://github.com/wasmfx/fiber-c
