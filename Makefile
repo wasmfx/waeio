@@ -53,7 +53,13 @@ httpserver_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h e
 	$(WASM_INTERP) -d -i httpserver_host_wasmfx.patched_pre.wat -o httpserver_host_wasmfx.patched_pre.wasm
 
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.patched_pre.wasm "main" -o httpserver_host_wasmfx.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_host_wasmfx.patched_pre.wasm "main"  -o httpserver_host_wasmfx.merged.wasm
+
+	# HOTFIX: We need to delete the stack pointer export for now (wasmtime doesn't like it)
+	$(WASM_INTERP) -d -i httpserver_host_wasmfx.merged.wasm -o httpserver_host_wasmfx.merged.wat
+	sed  's/.*(export "__exported_shadow_stack_pointer".*//' httpserver_host_wasmfx.merged.wat > httpserver_host_wasmfx.wat
+	$(WASM_INTERP) -d -i httpserver_host_wasmfx.wat -o httpserver_host_wasmfx.wasm
+
 	chmod +x httpserver_host_wasmfx.wasm
 
 httpserver_wasio_host: inc/wasio.h httpserver_wasio_host_wasmfx.wasm httpserver_wasio_host_asyncify.wasm
