@@ -51,7 +51,7 @@ httpserver_wasio_host_asyncify.wasm: inc/wasio.h inc/host/errno.h src/wasio/host
 httpserver_wasio_host_wasmfx.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h src/wasio/host_poll.c examples/httpserver/httpserver_wasio_fiber.c examples/httpserver/http_utils.h src/fiber_wasmfx_imports.wat
 	$(WASICC) -DWASIO_BACKEND=2 -DWASMFX_CONT_TABLE_INITIAL_CAPACITY=$(MAX_CONNECTIONS) -Wl,--export-table,--export-memory vendor/picohttpparser/picohttpparser.c src/host/errno.c vendor/fiber-c/src/wasmfx/wasmfx_impl.c src/wasio/host_poll.c $(WASIFLAGS) -I examples/httpserver examples/httpserver/httpserver_wasio_fiber.c -o httpserver_wasio_host_wasmfx.pre.wasm -I vendor/picohttpparser
 	$(WASM_INTERP) -d -i src/fiber_wasmfx_imports.wat -o fiber_wasmfx_imports.wasm
-	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.pre.wasm "benchmark" -o httpserver_wasio_host_wasmfx.wasm
+	$(WASM_MERGE) fiber_wasmfx_imports.wasm "fiber_wasmfx_imports" httpserver_wasio_host_wasmfx.pre.wasm "main" -o httpserver_wasio_host_wasmfx.wasm
 	chmod +x httpserver_wasio_host_wasmfx.wasm
 
 httpserver_host_bespoke.wasm: inc/host/errno.h src/host/errno.c inc/host/poll.h examples/httpserver/httpserver_bespoke.c examples/httpserver/http_utils.h
