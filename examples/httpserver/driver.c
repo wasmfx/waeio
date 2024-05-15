@@ -44,6 +44,8 @@ int main(int argc, const char **argv) {
 
   // Create a linker with WASI functions defined
   wasmtime_linker_t *linker = wasmtime_linker_new(engine);
+  // The following is required to allow the export of __stack_pointer
+  wasmtime_linker_allow_unknown_exports(linker, true);
   wasmtime_error_t *error = wasmtime_linker_define_wasi(linker);
   if (error != NULL)
     exit_with_error("failed to link wasi", error, NULL);
