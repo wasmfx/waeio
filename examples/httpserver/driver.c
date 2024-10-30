@@ -35,7 +35,7 @@ int main(int argc, const char **argv) {
 #endif
   wasmtime_config_wasm_function_references_set(config, true);
   wasmtime_config_wasm_exceptions_set(config, true);
-  wasmtime_config_wasm_typed_continuations_set(config, true);
+  wasmtime_config_wasm_stack_switching_set(config, true);
   wasm_engine_t *engine = wasm_engine_new_with_config(config);
   assert(engine != NULL);
   wasmtime_store_t *store = wasmtime_store_new(engine, NULL, NULL);

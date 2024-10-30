@@ -5,10 +5,10 @@ WASMFX_PRESERVE_SHADOW_STACK?=1
 WASMFX_CONT_SHADOW_STACK_SIZE?=65536
 MODE?=release
 VERBOSE?=0
-ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations -O2 --asyncify
+ASYNCIFY=../benchfx/binaryenfx/bin/wasm-opt --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-stack-switching -O2 --asyncify
 WASICC=../benchfx/wasi-sdk-22.0/bin/clang
 WASM_INTERP=../spec/interpreter/wasm
-WASM_MERGE=../benchfx/binaryenfx/bin/wasm-merge --enable-multimemory --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-typed-continuations
+WASM_MERGE=../benchfx/binaryenfx/bin/wasm-merge --enable-multimemory --enable-exception-handling --enable-reference-types --enable-multivalue --enable-bulk-memory --enable-gc --enable-stack-switching
 COMMON_FLAGS=--std=c17 -Wall -Wextra -Werror -Wpedantic -Wno-strict-prototypes -O3 -I inc -I vendor/fiber-c/inc -DMAX_CONNECTIONS=$(MAX_CONNECTIONS)
 ifeq ($(MODE), debug)
 COMMON_FLAGS:=$(COMMON_FLAGS) -DDEBUG -g -ftrapv -fno-split-stack -fsanitize-trap -fstack-protector
